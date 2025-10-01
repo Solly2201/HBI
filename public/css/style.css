@@ -1,0 +1,210 @@
+:root {
+    --red-color: rgb(255, 48, 48);
+    --red-hover: #cc0000;
+    --pink-color: #ffcccc;
+    --green-color: #4CAF50;
+    --text-color: #333;
+    --bg-color: #fff;
+    --border-radius: 25px;
+}
+
+body {
+    margin: 0;
+    padding: 0;
+    font-family: 'Nunito', 'Arial', sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-color);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    min-height: 100vh;
+    text-align: center;
+}
+
+/* Navbar styled like your original */
+.navbar {
+    background-color: var(--red-color);
+    color: white;
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    height: 100px;
+    padding: 0 20px;
+    box-sizing: border-box;
+}
+.logo img {
+    height: 90px;
+    cursor: pointer;
+}
+.navbar nav ul {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+}
+.navbar nav li {
+    background-color: white;
+    color: black;
+    padding: 15px 22px;
+    border-radius: 20px;
+    font-weight: 900; /* Bolder font */
+    font-size: 1.2rem;
+    cursor: pointer;
+    transition: background-color 0.2s;
+}
+.navbar nav li:hover {
+    background-color: rgba(255, 255, 255, 0.7);
+}
+
+main {
+    flex-grow: 1;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    width: 100%;
+    margin-top: 50px;
+    padding: 20px;
+}
+
+.screen {
+    display: none;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    width: 100%;
+}
+.screen.active { display: flex; }
+
+.angy {
+    height: 350px; /* Larger image */
+    margin-bottom: 30px;
+}
+
+.btn {
+    border: none;
+    padding: 18px 30px; /* Your original padding */
+    border-radius: var(--border-radius);
+    font-size: 1rem;
+    font-weight: 900; /* Bolder font */
+    cursor: pointer;
+    transition: all 0.2s;
+}
+.btn-red {
+    background-color: var(--red-color);
+    color: white;
+}
+.btn-red:hover {
+    background-color: var(--red-hover);
+}
+.btn-pink {
+    background-color: var(--pink-color);
+    color: var(--text-color);
+}
+.btn-green {
+    background-color: var(--green-color);
+    color: white;
+}
+
+.button-group { display: flex; gap: 30px; margin-bottom: 30px; }
+.input-group { display: flex; gap: 10px; align-items: center; margin-top: 20px; }
+
+.inputbox input, .input-group input {
+    background-color: var(--pink-color); /* Your original input color */
+    border: none;
+    padding: 15px 40px;
+    border-radius: 40px;
+    font-size: 20px;
+    font-weight: bolder;
+    text-align: center;
+    width: 250px;
+}
+.inputbox input::placeholder, .input-group input::placeholder { color: var(--text-color); opacity: 0.7; }
+
+/* Waiting, Cuisine, and other screens styling */
+.hidden { display: none !important; }
+.error { color: var(--red-color); min-height: 20px; font-weight: bold; margin-bottom: 10px;}
+#room-id-display { user-select: all; }
+#copy-id-btn { background: none; border: none; font-size: 1.2rem; cursor: pointer; }
+.joined-list { margin: 20px 0; min-height: 100px; }
+.joined-list ul { list-style: none; padding: 0; }
+.joined-list li { font-size: 1.2rem; margin: 5px 0; }
+.host-tag { font-size: 0.8rem; color: #fff; background-color: var(--green-color); padding: 2px 6px; border-radius: 5px; margin-left: 8px; }
+
+.cuisine-options { display: grid; grid-template-columns: repeat(auto-fit, minmax(120px, 1fr)); gap: 15px; margin: 20px 0; max-width: 600px; width: 90%; }
+.btn-cuisine { background-color: white; color: var(--text-color); border: 2px solid var(--pink-color); padding: 20px; }
+.btn-cuisine.selected { background-color: var(--pink-color); font-weight: bold; }
+
+#food-item-card img { max-width: 200px; height: auto; border-radius: 15px; }
+.eat-o-meter { display: flex; align-items: center; gap: 15px; margin: 10px 0 20px 0; font-size: 1.5rem; }
+.slider { width: 250px; }
+
+.loader { border: 8px solid #f3f3f3; border-radius: 50%; border-top: 8px solid var(--red-color); width: 60px; height: 60px; animation: spin 1.5s linear infinite; margin-top: 20px; }
+@keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+.results-table { width: 90%; max-width: 600px; margin: 20px 0; border-collapse: collapse; }
+.results-table th, .results-table td { padding: 12px; border: 1px solid #ddd; }
+.results-table th { background-color: var(--pink-color); }
+.results-table input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
+
+/* New List Screen & Waiting Overlay */
+.final-list { list-style: none; padding: 0; margin: 20px 0; width: 90%; max-width: 400px; }
+.final-list li { background: #f0f0f0; padding: 15px; border-radius: 10px; margin-bottom: 10px; font-size: 1.2rem; }
+
+.waiting-overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(255, 255, 255, 0.8);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.results-table { width: 90%; max-width: 600px; margin: 20px 0; border-collapse: collapse; }
+.results-table th, .results-table td { padding: 12px; border: 1px solid #ddd; }
+.results-table th { background-color: var(--pink-color); }
+.results-table input[type="checkbox"] { width: 20px; height: 20px; cursor: pointer; }
+
+/* Overlay & Modal Styling */
+.overlay {
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background-color: rgba(0, 0, 0, 0.6);
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+    color: white;
+}
+.modal {
+    background: white;
+    color: var(--text-color);
+    padding: 20px 40px;
+    border-radius: 15px;
+    position: relative;
+    width: 90%;
+    max-width: 450px;
+    box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+}
+.close-btn {
+    position: absolute;
+    top: 10px;
+    right: 15px;
+    background: none;
+    border: none;
+    font-size: 2.5rem;
+    color: #aaa;
+    cursor: pointer;
+}
+.close-btn:hover {
+    color: var(--text-color);
+}
+.final-list { list-style: none; padding: 0; margin: 20px 0; }
+.final-list li { background: #f0f0f0; padding: 15px; border-radius: 10px; margin-bottom: 10px; font-size: 1.2rem; }
