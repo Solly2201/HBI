@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hungry but Indecisive?</title>
+    <link rel="stylesheet" href="css/style.css">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Nunito:wght@400;700;900&display=swap" rel="stylesheet">
+</head>
+<body>
+    <header class="navbar">
+        <div class="logo">
+            <img src="images/logo.png" alt="HBI Logo" class="home-button">
+        </div>
+        <nav>
+            <ul>
+                <li id="list-nav-button">List 🛒</li>
+            </ul>
+        </nav>
+    </header>
+
+    <main>
+        <div class="screen active" id="home-screen">
+            <img src="images/angwy.png" class="angy" alt="A drawing of a hungry, angry bear.">
+            <div id="error-message" class="error"></div>
+            <div class="button-group">
+                <button class="btn btn-red" id="create-new-btn">Create New</button>
+                <button class="btn btn-red" id="join-room-toggle-btn">Enter ID</button>
+            </div>
+            <div class="inputbox">
+                <input type="text" id="your-name-input" placeholder="Your Name" maxlength="15">
+            </div>
+             <div class="input-group hidden" id="join-room-section">
+                <input type="text" id="room-id-input" placeholder="Enter Room ID" maxlength="5">
+                <button class="btn btn-red" id="join-room-btn">Join</button>
+            </div>
+        </div>
+
+        <div class="screen" id="waiting-screen">
+            <h2>Waiting for people to join...</h2>
+            <p>Your Room ID is: <strong id="room-id-display"></strong> <button id="copy-id-btn">📋</button></p>
+            <div class="joined-list">
+                <h3>Joined (<span id="player-count">1</span>/8):</h3>
+                <ul id="players-list"></ul>
+            </div>
+            <button class="btn btn-pink" id="start-blend-btn" disabled>Start Blend (Host Only)</button>
+        </div>
+        
+        <div class="screen" id="cuisine-screen">
+             <h2>SELECT CUISINES</h2>
+             <div class="cuisine-options">
+                 <button class="btn btn-cuisine" data-cuisine="Indian">INDIAN</button>
+                 <button class="btn btn-cuisine" data-cuisine="Mexican">MEXICAN</button>
+                 <button class="btn btn-cuisine" data-cuisine="Chinese">CHINESE</button>
+                 <button class="btn btn-cuisine" data-cuisine="Italian">ITALIAN</button>
+                 <button class="btn btn-cuisine" data-cuisine="South Indian">SOUTH INDIAN</button>
+                 <button class="btn btn-cuisine" data-cuisine="Beverages">BEVERAGES</button>
+                 <button class="btn btn-cuisine" data-cuisine="American">AMERICAN</button>
+                 <button class="btn btn-cuisine" data-cuisine="Desserts">DESSERTS</button>
+             </div>
+             <div class="button-group">
+                <button class="btn btn-red" id="submit-cuisines-btn">Submit Choices</button>
+                <button class="btn btn-green hidden" id="force-submit-btn">Submit for Everyone</button>
+             </div>
+        </div>
+
+        <div class="screen" id="rating-screen">
+            <div id="food-item-card"></div>
+            <h3>EAT-O-METER</h3>
+            <div class="eat-o-meter">
+                <span>😞</span>
+                <input type="range" min="1" max="5" value="3" class="slider" id="rating-slider">
+                <span>😄</span>
+            </div>
+            <div id="rating-buttons">
+                <button class="btn btn-red" id="rating-next-btn">NEXT</button>
+                <button class="btn btn-green" id="blend-btn" style="display: none;">BLEND...</button>
+            </div>
+        </div>
+
+        <div class="screen" id="compiling-screen">
+            <h2>COMPILING RESULTS...</h2>
+            <div class="loader"></div>
+        </div>
+
+        <div class="screen" id="results-screen">
+            <h2>YOUR TOP FOOD MATCHES!</h2>
+            <table class="results-table">
+                <thead>
+                    <tr>
+                        <th>Rank</th>
+                        <th>Item</th>
+                        <th>Cuisine</th>
+                        <th>Add to List</th>
+                    </tr>
+                </thead>
+                <tbody id="results-tbody"></tbody>
+            </table>
+            <div class="button-group">
+                <button class="btn btn-pink" id="go-to-list-btn">View List</button>
+                <button class="btn btn-red home-button">Play Again</button>
+            </div>
+        </div>
+    </main>
+
+    <div id="waiting-overlay" class="overlay hidden">
+        <div class="loader"></div>
+        <p>Waiting for other players...</p>
+    </div>
+
+    <div id="list-overlay" class="overlay hidden">
+        <div class="modal">
+            <button class="close-btn" id="close-list-btn">&times;</button>
+            <h2>Your Food List 📝</h2>
+            <ul id="final-list-ul" class="final-list"></ul>
+        </div>
+    </div>
+
+    <script src="/socket.io/socket.io.js"></script>
+    <script src="js/app.js"></script>
+</body>
+</html>
