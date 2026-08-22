@@ -1,0 +1,54 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center_horizontal"
+    android:padding="16dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="SELECT CUISINES"
+        android:textSize="24sp"
+        android:textStyle="bold"
+        android:layout_marginBottom="24dp"/>
+
+    <GridLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:columnCount="2"
+        android:rowCount="4">
+
+        <Button android:id="@+id/btn_indian" android:backgroundTint="#FF0000" android:layout_margin="8dp" android:text="INDIAN"/>
+
+        <Button
+            android:id="@+id/btn_mexican"
+            android:layout_margin="8dp"
+            android:backgroundTint="#FF0000"
+            android:text="MEXICAN" />
+        <Button android:id="@+id/btn_chinese" android:backgroundTint="#FF0000" android:layout_margin="8dp" android:text="CHINESE"/>
+        <Button android:id="@+id/btn_italian" android:backgroundTint="#FF0000" android:layout_margin="8dp" android:text="ITALIAN"/>
+        <Button android:id="@+id/btn_south_indian" android:backgroundTint="#FF0000" android:layout_margin="8dp" android:text="SOUTH INDIAN"/>
+        <Button android:id="@+id/btn_beverages" android:backgroundTint="#FF0000" android:layout_margin="8dp" android:text="BEVERAGES"/>
+        <Button android:id="@+id/btn_american" android:backgroundTint="#FF0000" android:layout_margin="8dp" android:text="AMERICAN"/>
+        <Button android:id="@+id/btn_desserts" android:backgroundTint="#FF0000" android:layout_margin="8dp" android:text="DESSERTS"/>
+    </GridLayout>
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:layout_marginTop="32dp">
+
+        <Button
+            android:id="@+id/submit_cuisines_btn"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:backgroundTint="#000000"
+            android:text="Submit Choices" />
+
+    </LinearLayout>
+
+</LinearLayout>

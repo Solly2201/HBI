@@ -1,0 +1,77 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/homeFragment">
+
+    <fragment
+        android:id="@+id/homeFragment"
+        android:name="com.example.hbi.HomeFragment"
+        android:label="Home"
+        tools:layout="@layout/fragment_home">
+        <action
+            android:id="@+id/action_homeFragment_to_waitingFragment"
+            app:destination="@id/waitingFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/waitingFragment"
+        android:name="com.example.hbi.WaitingFragment"
+        android:label="Waiting Room"
+        tools:layout="@layout/fragment_waiting">
+        <argument
+            android:name="roomId"
+            app:argType="string" />
+        <argument
+            android:name="userName"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_waitingFragment_to_cuisineFragment"
+            app:destination="@id/cuisineFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/cuisineFragment"
+        android:name="com.example.hbi.CuisineFragment"
+        android:label="Cuisine Selection"
+        tools:layout="@layout/fragment_cuisine">
+        <argument
+            android:name="roomId"
+            app:argType="string" />
+        <argument
+            android:name="userName"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_cuisineFragment_to_ratingFragment"
+            app:destination="@id/ratingFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/ratingFragment"
+        android:name="com.example.hbi.RatingFragment"
+        android:label="Food Rating"
+        tools:layout="@layout/fragment_rating">
+        <argument
+            android:name="roomId"
+            app:argType="string" />
+        <argument
+            android:name="userName"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_ratingFragment_to_resultsFragment"
+            app:destination="@id/resultsFragment" />
+    </fragment>
+    <fragment
+        android:id="@+id/resultsFragment"
+        android:name="com.example.hbi.ResultsFragment"
+        android:label="Results"
+        tools:layout="@layout/fragment_results">
+        <argument
+            android:name="roomId"
+            app:argType="string" />
+        <action
+            android:id="@+id/action_resultsFragment_to_homeFragment"
+            app:destination="@id/homeFragment"
+            app:popUpTo="@id/homeFragment"
+            app:popUpToInclusive="true"/>
+    </fragment>
+
+</navigation>
