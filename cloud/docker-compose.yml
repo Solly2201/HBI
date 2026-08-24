@@ -100,6 +100,23 @@ services:
       start_period: 20s
     networks: [hbi]
 
+  # ---------------------------------------------------------------- redis
+  # Ephemeral pub/sub only: the cross-instance WebSocket fan-out channel for
+  # rating-service replicas (see rating-service RoomBroadcaster). Persistence
+  # is off on purpose - nothing in Redis outlives the frame's flight time,
+  # and losing it degrades real-time delivery to instance-local, nothing more.
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--save", "", "--appendonly", "no"]
+    ports: ["6379:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    networks: [hbi]
+
   # ------------------------------------------------------------- services
 
   user-service:
@@ -171,9 +188,15 @@ services:
       FOOD_SERVICE_URL: http://food-service:8083
       BLEND_SHORTLIST_SIZE: ${BLEND_SHORTLIST_SIZE:-12}
       RESCORE_INTERVAL_MS: ${RESCORE_INTERVAL_MS:-250}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
     depends_on:
       rating-db: {condition: service_healthy}
       kafka: {condition: service_healthy}
+      # service_started, not healthy: the service runs fine without Redis
+      # (fan-out degrades to instance-local), so a broken Redis must not
+      # keep rating-service from booting.
+      redis: {condition: service_started}
       room-service: {condition: service_started}
       food-service: {condition: service_started}
     ports: ["8084:8084"]

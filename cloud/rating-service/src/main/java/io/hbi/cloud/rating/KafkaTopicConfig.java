@@ -9,9 +9,19 @@ import org.springframework.kafka.config.TopicBuilder;
 @Configuration
 public class KafkaTopicConfig {
 
+    /**
+     * Three partitions per topic: enough for up to three rating-service
+     * replicas to share the consumer group, small enough to reason about on a
+     * single demo broker. Every producer keys by roomCode, so one room's
+     * events stay on one partition and keep their order — the only ordering
+     * the application relies on. KafkaAdmin grows an existing single-partition
+     * topic in place on startup, so old volumes upgrade without intervention.
+     */
+    static final int PARTITIONS = 3;
+
     @Bean
     NewTopic ratingsTopic(@Value("${hbi.kafka.ratings-topic}") String topic) {
-        return TopicBuilder.name(topic).partitions(1).replicas(1).build();
+        return TopicBuilder.name(topic).partitions(PARTITIONS).replicas(1).build();
     }
 
     /**
@@ -20,7 +30,7 @@ public class KafkaTopicConfig {
      */
     @Bean
     NewTopic roomEventsTopic(@Value("${hbi.kafka.room-events-topic}") String topic) {
-        return TopicBuilder.name(topic).partitions(1).replicas(1).build();
+        return TopicBuilder.name(topic).partitions(PARTITIONS).replicas(1).build();
     }
 
     /**
@@ -30,11 +40,11 @@ public class KafkaTopicConfig {
      */
     @Bean
     NewTopic ratingsDeadLetterTopic(@Value("${hbi.kafka.ratings-topic}") String topic) {
-        return TopicBuilder.name(topic + ".DLT").partitions(1).replicas(1).build();
+        return TopicBuilder.name(topic + ".DLT").partitions(PARTITIONS).replicas(1).build();
     }
 
     @Bean
     NewTopic roomEventsDeadLetterTopic(@Value("${hbi.kafka.room-events-topic}") String topic) {
-        return TopicBuilder.name(topic + ".DLT").partitions(1).replicas(1).build();
+        return TopicBuilder.name(topic + ".DLT").partitions(PARTITIONS).replicas(1).build();
     }
 }

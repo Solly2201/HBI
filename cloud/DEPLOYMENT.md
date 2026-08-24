@@ -84,6 +84,7 @@ Every setting the services read comes from the environment:
 | `SESSION_RATE_REFILL_PER_MINUTE` | api-gateway | Session tokens regained per minute (default 60; consider 10 in production) |
 | `CORS_ALLOWED_ORIGINS` | api-gateway | Only needed for `npm run dev` |
 | `*_SERVICE_URL` | gateway, rating-service | Internal addresses, set by Compose |
+| `REDIS_HOST` / `REDIS_PORT` | rating-service | WebSocket fan-out channel, set by Compose |
 
 ### Secrets
 
@@ -329,6 +330,56 @@ and the test suites never hit them; for a public deployment set something like
 
 ---
 
+## Scaling out the rating path
+
+The real-time pipeline is horizontally scalable:
+
+```text
+Kafka (3 partitions per topic, keyed by room code)
+   → rating-service replicas (consumer group splits the partitions)
+      → Redis pub/sub (one channel; every replica relays to its own browsers)
+         → STOMP WebSocket clients
+```
+
+- **Why Redis exists**: each replica's STOMP broker is in-memory and only reaches
+  the browsers connected to that replica. Without a bridge, two replicas meant
+  half the players stopped receiving events (measured before the fix: 0/10
+  cross-instance deliveries). Every event is now published once to one Redis
+  channel and each replica — including the originator — relays it to its local
+  subscribers, so each browser gets each event exactly once.
+- **What Redis stores**: nothing. It carries in-flight WebSocket frames and has
+  persistence disabled. Users, rooms, ratings, recommendations, decisions and the
+  catalogue live in PostgreSQL; durable events live in Kafka. A Redis outage
+  degrades real-time delivery to instance-local (each browser still sees events
+  its own replica produced), REST and rating persistence continue unaffected, and
+  fan-out recovers automatically when Redis returns.
+- **Partitions**: three per topic, keyed by room code — one room's events stay
+  ordered on one partition while rooms spread across replicas. Three is enough
+  for the replica counts a single VM can host; it is not a throughput ceiling
+  worth raising speculatively.
+
+To run replicas (works with the production override, which publishes no service
+ports; for local experiments use `benchmarks/docker-compose.scale.yml` which
+unpublishes them for the same reason):
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d --scale rating-service=3
+```
+
+What still does not scale by replication: the gateway and each PostgreSQL
+instance are single containers (vertical scaling / managed replacements are the
+production answer), and the single Kafka broker is a demo-grade setup.
+
+The gateway also survives backend redeploys now: its DNS cache is capped at a
+few seconds and idle pooled connections are evicted, so recreating a service
+container (new IP) heals without restarting the gateway.
+
+On AWS, the Redis container maps to **ElastiCache (Redis OSS)** the same way the
+databases map to RDS — an optional managed replacement for a long-lived
+deployment, not something local operation needs.
+
+---
+
 ## Schema initialization and migrations
 
 Each service creates its own schema with Hibernate (`ddl-auto: update`) on boot.
@@ -363,6 +414,7 @@ is no separate observability stack, deliberately.
 | rating-service | `curl -s localhost:8084/actuator/health` | `"status":"UP"` (includes its DB and Kafka) |
 | PostgreSQL (each) | `docker compose exec user-db pg_isready -U hbi` | `accepting connections` |
 | Kafka | `docker compose exec kafka /opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list` | lists `hbi.ratings`, `hbi.room-events` |
+| Redis (WS fan-out) | `docker compose exec redis redis-cli ping` | `PONG` (an outage only degrades real-time fan-out to instance-local) |
 | Kafka consumer lag | `... kafka-consumer-groups.sh --bootstrap-server kafka:9092 --describe --group hbi-rating-service` | LAG 0 or briefly small |
 | Poison messages | same, topics `hbi.ratings.DLT` / `hbi.room-events.DLT` | empty unless something malformed arrived |
 | Application failures | `docker compose logs --since 1h \| grep -iE "error\|exception"` | nothing recurring |

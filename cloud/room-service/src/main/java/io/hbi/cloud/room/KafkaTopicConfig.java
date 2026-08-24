@@ -12,6 +12,9 @@ public class KafkaTopicConfig {
 
     @Bean
     NewTopic roomEventsTopic(@Value("${hbi.kafka.room-events-topic}") String topic) {
-        return TopicBuilder.name(topic).partitions(1).replicas(1).build();
+        // Three partitions, matching the rating service's declaration: events
+        // are keyed by room code, so per-room ordering survives while up to
+        // three consumers share the group.
+        return TopicBuilder.name(topic).partitions(3).replicas(1).build();
     }
 }

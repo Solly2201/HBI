@@ -67,8 +67,11 @@ target environment, not something that currently exists.
                                               |
                                               v
                                    RATING / DECISION SERVICE
-                                    consumes both topics,
-                                    re-scores, decides
+                                  (1..n replicas) consumes both
+                                   topics, re-scores, decides
+                                              |
+                                      REDIS pub/sub fan-out
+                                 (bridges every replica's broker)
                                               |
                                      STOMP over WebSocket
                                               |
@@ -109,6 +112,9 @@ Top Food Choices         (auto once everyone finishes, or the host forces it
 
 Five backend services — no more. Preferences, ratings, scoring and the decision all
 live together in one service because they are one workflow over one dataset.
+Infrastructure around them: four PostgreSQL databases (one per data service), one
+Kafka broker (durable events), and one Redis (nothing but the cross-replica
+WebSocket fan-out channel — no business data).
 
 | Service | Port | Owns | Talks to |
 |---|---|---|---|
@@ -331,6 +337,12 @@ HBI Web uses Socket.IO. HBI Microservices deliberately does **not** copy that: i
   rejection no longer closes the client's socket. The rating service verifies it again
   during the handshake, which is what protects it if it is ever reached directly.
 - Subscription: `/topic/rooms/{roomCode}`
+- Fan-out: each instance runs an in-memory STOMP broker for its own clients, and
+  instances bridge each other over one Redis pub/sub channel — an event is published
+  once, every instance (originator included) relays it to its local subscribers, and
+  each browser holds exactly one connection, so events arrive exactly once no matter
+  which replica processed them. Redis down ⇒ delivery degrades to instance-local and
+  self-recovers; ratings, Kafka and REST are unaffected.
 
 Every message uses one envelope:
 
@@ -669,12 +681,17 @@ Known and deliberate:
 - **Services trust the gateway's `X-User-Id` header.** That is sound only because
   nothing but the gateway is reachable from outside. If a service were exposed
   directly, it would need to verify the JWT itself.
-- **One Kafka broker, one partition per topic, replication factor 1.** Fine for a
-  demo; not a highly available setup.
-- **The STOMP broker is Spring's in-memory `SimpleBroker`.** Running two rating-service
-  replicas would mean a browser only receives events from the instance it happens to be
-  connected to. A shared broker (or Kafka-fed fan-out per instance) would be needed to
-  scale out.
+- **One Kafka broker, three partitions per topic, replication factor 1.** Events are
+  keyed by room code (per-room ordering), so up to three rating-service replicas can
+  share the consumer group — but a single broker is still not a highly available setup.
+- **The STOMP broker is Spring's in-memory `SimpleBroker`, bridged by Redis pub/sub.**
+  Each instance's broker only reaches its own browsers, so `RoomBroadcaster` publishes
+  every event to one Redis channel and every instance (originator included) relays it
+  to its local clients — measured at 2 replicas: cross-instance delivery went from
+  0/10 to 10/10. Redis carries nothing but these in-flight frames; if it is down,
+  delivery degrades to instance-local (the pre-Redis behaviour) and recovers by
+  itself. SockJS HTTP fallbacks would additionally need sticky sessions across
+  replicas; the shipped frontend uses native WebSocket, which is a single connection.
 - **The candidate shortlist freeze is last-writer-loses.** Two players requesting it
   at the exact same moment can collide on the unique constraint; the loser detects the
   collision and returns the winner's frozen shortlist, so both players always rate the

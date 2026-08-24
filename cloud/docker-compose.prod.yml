@@ -26,6 +26,7 @@ services:
   food-db:            {ports: !reset []}
   rating-db:          {ports: !reset []}
   kafka:              {ports: !reset []}
+  redis:              {ports: !reset []}
   user-service:       {ports: !reset []}
   room-service:       {ports: !reset []}
   food-service:       {ports: !reset []}

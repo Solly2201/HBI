@@ -22,6 +22,14 @@ spring:
       # because its default ';' splitting would break the PL/pgSQL DO block.
       mode: always
       separator: ^^^ END OF SCRIPT ^^^
+  data:
+    redis:
+      # The WebSocket fan-out channel only (RoomBroadcaster). A short command
+      # timeout keeps a Redis outage from stalling the Kafka listener or the
+      # re-score thread - failures fall back to instance-local delivery.
+      host: ${REDIS_HOST:localhost}
+      port: ${REDIS_PORT:6379}
+      timeout: 1s
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
     producer:
@@ -66,6 +74,12 @@ hbi:
     rescore-interval-ms: ${RESCORE_INTERVAL_MS:250}
 
 management:
+  health:
+    redis:
+      # Redis only carries best-effort real-time fan-out; the service is fully
+      # functional without it (delivery degrades to instance-local). Its
+      # outage should not mark the whole service unhealthy.
+      enabled: false
   endpoints:
     web:
       exposure:
