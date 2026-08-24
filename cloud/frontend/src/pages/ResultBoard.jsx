@@ -1,8 +1,13 @@
-import React, { useEffect } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { getRecommendations } from '../api';
-import { money, km } from '../components';
 
+const TOP_DEFAULT = 10;
+
+/**
+ * The answer to "what should our group eat?" — the group's food preferences,
+ * ranked. Top 10 by default, VIEW MORE for the rest.
+ */
 export default function ResultBoard({
   roomCode,
   decision,
@@ -12,9 +17,9 @@ export default function ResultBoard({
   onCloseRoom,
 }) {
   const navigate = useNavigate();
-  const winner = decision?.restaurant;
+  const [showAll, setShowAll] = useState(false);
 
-  // Fill in the runners-up if this browser joined after the ranking was pushed.
+  // Fill in the ranking if this browser joined after it was pushed.
   useEffect(() => {
     let alive = true;
     if (recommendations.length === 0) {
@@ -36,56 +41,43 @@ export default function ResultBoard({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  const ranked = recommendations.filter((rec) => rec.food);
+  const visible = showAll ? ranked : ranked.slice(0, TOP_DEFAULT);
+  const hasMore = ranked.length > TOP_DEFAULT;
+
   return (
     <div className="stack">
       <div className="card tinted">
-        <h2 style={{ marginBottom: 14 }}>You&apos;re eating at...</h2>
-        {winner ? (
-          <div className="winner">
-            <img src={winner.imageUrl} alt={winner.signatureDish} />
-            <div className="rank-body">
-              <h1 style={{ marginBottom: 6 }}>{winner.name}</h1>
-              <p style={{ margin: 0, fontWeight: 700 }}>
-                {winner.cuisine} &middot; famous for {winner.signatureDish}
-              </p>
-              <p className="muted" style={{ margin: '6px 0 0' }}>
-                {money(winner.avgCostForTwo)} for two &middot; {km(winner.distanceKm)} away &middot;{' '}
-                {winner.area}
-              </p>
-              <p className="muted" style={{ margin: '6px 0 0' }}>
-                Group score {Math.round((decision.finalScore ?? 0) * 100)} /100 &middot; decided{' '}
-                {decision.decidedBy === 'AUTO' ? 'once everyone finished rating' : 'by the host'}.
-              </p>
-            </div>
-          </div>
-        ) : (
-          <p className="muted">The decision is in, but the restaurant details could not be loaded.</p>
-        )}
-      </div>
+        <h2 style={{ marginBottom: 4 }}>TOP FOOD CHOICES</h2>
+        <p className="muted" style={{ margin: '0 0 14px' }}>
+          Blended from everyone&apos;s ratings
+          {decision?.decidedBy === 'HOST' ? ' (the host called it)' : ''}.
+        </p>
 
-      {recommendations.length > 1 && (
-        <div className="card">
-          <h3>YOUR TOP MATCHES</h3>
+        {ranked.length === 0 ? (
+          <p className="muted">The blend is done, but the ranking could not be loaded.</p>
+        ) : (
           <ol className="rank-list">
-            {recommendations.map((rec) => (
-              <li key={rec.restaurant?.id ?? rec.rank} className={rec.rank === 1 ? 'top' : undefined}>
+            {visible.map((rec) => (
+              <li key={rec.food.id} className={rec.rank === 1 ? 'top' : undefined}>
                 <span className="rank-no">#{rec.rank}</span>
-                {rec.restaurant?.imageUrl && (
-                  <img src={rec.restaurant.imageUrl} alt="" loading="lazy" />
-                )}
+                {rec.food.imageUrl && <img src={rec.food.imageUrl} alt="" loading="lazy" />}
                 <div className="rank-body">
-                  <div style={{ fontWeight: 900 }}>{rec.restaurant?.name}</div>
-                  <div className="muted">
-                    {rec.restaurant?.cuisine} &middot; {money(rec.restaurant?.avgCostForTwo)} &middot;{' '}
-                    {km(rec.restaurant?.distanceKm)}
-                  </div>
+                  <div style={{ fontWeight: 900 }}>{rec.food.name}</div>
+                  <div className="muted">{rec.food.cuisine}</div>
                 </div>
                 <span className="rank-score">{Math.round(rec.score * 100)}</span>
               </li>
             ))}
           </ol>
-        </div>
-      )}
+        )}
+
+        {hasMore && !showAll && (
+          <button className="btn btn-pink" onClick={() => setShowAll(true)}>
+            VIEW MORE
+          </button>
+        )}
+      </div>
 
       <div className="button-group center">
         <button className="btn btn-red" onClick={() => navigate('/')}>

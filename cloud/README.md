@@ -1,17 +1,19 @@
-# HBI Cloud
+# HBI Microservices
 
 The third implementation of **Hungry but Indecisive?** — the same product as HBI Web and
-HBI Mobile, rebuilt as a cloud-native system.
+HBI Mobile, rebuilt as a distributed microservices system.
 
 | Implementation | Stack | Status |
 |---|---|---|
 | **HBI Web** | HTML/CSS/JS + Node.js + Express + **Socket.IO** | existing, untouched |
 | **HBI Mobile** | Android (Java/XML) + **Firebase** | existing, untouched |
-| **HBI Cloud** | React + Vite → **Spring Cloud Gateway** → Spring Boot microservices, **REST + Kafka + STOMP WebSocket**, database-per-service, Docker | this directory |
+| **HBI Microservices** | React + Vite → **Spring Cloud Gateway** → Spring Boot microservices, **REST + Kafka + STOMP WebSocket**, database-per-service, Docker | this directory |
 
-HBI Cloud is a **separate implementation**. It shares HBI's business logic, cuisines,
-food imagery and branding, but none of its code, and it does not modify or depend on
-`web/` or `mobile/` in any way.
+HBI Microservices is a **separate implementation**. It shares HBI's business logic,
+cuisines, food imagery and branding, but none of its code, and it does not modify or
+depend on `web/` or `mobile/` in any way. It runs on Docker Compose — locally or on
+any single VM; an AWS deployment is documented in [DEPLOYMENT.md](DEPLOYMENT.md) as a
+target environment, not something that currently exists.
 
 ---
 
@@ -37,7 +39,7 @@ food imagery and branding, but none of its code, and it does not modify or depen
 ## Architecture
 
 ```text
-                          HBI CLOUD WEB
+                          HBI FRONTEND
                     React + Vite (nginx, :5173)
                                 |
                         REST /api  +  WS /ws
@@ -50,11 +52,11 @@ food imagery and branding, but none of its code, and it does not modify or depen
         +-----------------+-----+------------+-----------------+
         |                 |                  |                 |
         v                 v                  v                 v
-   USER SERVICE      ROOM SERVICE     RESTAURANT SERVICE   RATING / DECISION
+   USER SERVICE      ROOM SERVICE       FOOD SERVICE      RATING / DECISION
       :8081            :8082               :8083            SERVICE  :8084
         |                 |                  |                 |
         v                 v                  v                 v
-    user_db           room_db          restaurant_db        rating_db
+    user_db           room_db             food_db           rating_db
                           |                  ^                 |
                           |                  | REST            |
                           |                  +-----------------+
@@ -87,15 +89,18 @@ Create or Join Room      (room-service)
       v
 Room Lobby               (live via WebSocket)
       v
-Select Cuisines          (plus budget and distance)
+Select Cuisines          (they decide which foods the room rates)
       v
-Rate, one at a time      (the EAT-O-METER, 1..5, NEXT reveals the next candidate)
+Rate, one food at a time (the EAT-O-METER, 1..5, NEXT reveals the next dish)
+      v
+BLEND NOW (optional)     (after rating half the list, a player may stop early)
       v
 See Group Progress       (live)
       v
 Recommendations          (deterministic scoring)
       v
-Final Restaurant         (auto once everyone finishes, or host decides)
+Top Food Choices         (auto once everyone finishes, or the host forces it
+                          when at least half the active players have rated enough)
 ```
 
 ---
@@ -109,9 +114,9 @@ live together in one service because they are one workflow over one dataset.
 |---|---|---|---|
 | **api-gateway** | 8080 | Routing, JWT verification, the single public entry point | all services |
 | **user-service** | 8081 | Anonymous player sessions, JWT issuing, profiles | `user_db` |
-| **room-service** | 8082 | Rooms, membership, room state | `room_db`, Kafka (produces) |
-| **restaurant-service** | 8083 | Restaurant catalogue, cuisine/budget/distance filtering | `restaurant_db` |
-| **rating-service** | 8084 | Preferences, ratings, recommendations, final decision, **WebSocket hub** | `rating_db`, Kafka (produces + consumes), room-service and restaurant-service over REST |
+| **room-service** | 8082 | Rooms, membership, room state | `room_db`, Kafka (produces + consumes) |
+| **food-service** | 8083 | Food catalogue, cuisine filtering | `food_db` |
+| **rating-service** | 8084 | Preferences, ratings, recommendations, final decision, **WebSocket hub** | `rating_db`, Kafka (produces + consumes), room-service and food-service over REST |
 | **frontend** | 5173 | React SPA, nginx, proxies `/api` and `/ws` to the gateway | api-gateway |
 
 ---
@@ -161,7 +166,7 @@ Each service is a standalone Maven project and reads its configuration from the
 environment, so it can be run directly once its database and Kafka are up:
 
 ```bash
-docker compose up -d user-db room-db restaurant-db rating-db kafka
+docker compose up -d user-db room-db food-db rating-db kafka
 
 cd cloud/user-service
 JWT_SECRET=your-long-dev-secret-at-least-32-characters \
@@ -193,7 +198,7 @@ mvn test                     # runs the unit tests
 ## API reference
 
 Everything is served through the gateway at `http://localhost:8080`.
-All endpoints except session creation and restaurant reads need
+All endpoints except session creation and food-catalogue reads need
 `Authorization: Bearer <jwt>`.
 
 ### User service — `/api/users`
@@ -217,32 +222,31 @@ All endpoints except session creation and restaurant reads need
 
 `{roomId}` is the shareable room code, e.g. `HBI7X92`.
 
-### Restaurant service — `/api/restaurants`
+### Food service — `/api/foods`
 
 | Method | Path | Purpose |
 |---|---|---|
-| `GET` | `/api/restaurants` | Whole catalogue |
-| `GET` | `/api/restaurants?cuisine=Chinese` | Filter by cuisine (comma-separated for several) |
-| `GET` | `/api/restaurants?budget=500` | Cost for two at most 500 |
-| `GET` | `/api/restaurants?maxDistanceKm=4` | Within 4 km |
-| `GET` | `/api/restaurants?ids=1,2,3` | Bulk lookup (used by the rating service) |
-| `GET` | `/api/restaurants/cuisines` | Distinct cuisine list |
-| `GET` | `/api/restaurants/{id}` | One restaurant |
+| `GET` | `/api/foods` | Whole food catalogue |
+| `GET` | `/api/foods?cuisine=Chinese` | Filter by cuisine (comma-separated for several) |
+| `GET` | `/api/foods?ids=1,2,3` | Bulk lookup (used by the rating service) |
+| `GET` | `/api/foods/cuisines` | Distinct cuisine list |
+| `GET` | `/api/foods/{id}` | One food item |
 
 ### Rating / decision service — `/api/rooms/{roomId}/…`
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/rooms/{roomId}/preferences` | `{cuisines[], maxBudget, maxDistanceKm}` |
-| `GET` | `/api/rooms/{roomId}/preferences` | Merged group preferences plus each player's |
-| `GET` | `/api/rooms/{roomId}/candidates` | The frozen shortlist this room is rating |
-| `POST` | `/api/rooms/{roomId}/ratings` | `{restaurantId, score}` (1–5) → publishes `RATING_SUBMITTED` |
-| `GET` | `/api/rooms/{roomId}/ratings` | All ratings plus group progress |
-| `GET` | `/api/rooms/{roomId}/recommendations` | Ranked candidates with their scores |
-| `POST` | `/api/rooms/{roomId}/finalize` | Host locks in the top result |
-| `GET` | `/api/rooms/{roomId}/decision` | The final restaurant (404 until decided) |
+| `POST` | `/api/rooms/{roomId}/preferences` | `{cuisines[]}` |
+| `GET` | `/api/rooms/{roomId}/preferences` | Merged group cuisines plus each player's |
+| `GET` | `/api/rooms/{roomId}/candidates` | The frozen food shortlist this room is rating |
+| `POST` | `/api/rooms/{roomId}/ratings` | `{foodId, score}` (1–5) → publishes `RATING_SUBMITTED` |
+| `GET` | `/api/rooms/{roomId}/ratings` | All ratings plus group progress (incl. `minRatingsRequired`, `finishedUserIds`, `hostCanFinalize`) |
+| `POST` | `/api/rooms/{roomId}/blend-now` | Player finishes early once they have rated the minimum (409 below it) |
+| `GET` | `/api/rooms/{roomId}/recommendations` | Ranked food items with their scores |
+| `POST` | `/api/rooms/{roomId}/finalize` | Host forces the blend — allowed only when ≥50% of active players have rated the minimum (403 non-host, 409 below threshold) |
+| `GET` | `/api/rooms/{roomId}/decision` | The top food (404 until decided) |
 
-`/api/rooms/**` is shared by two services. The gateway routes the six paths above to
+`/api/rooms/**` is shared by two services. The gateway routes the seven paths above to
 the rating service (`order: 0`) and everything else under `/api/rooms/**` to the room
 service (`order: 10`).
 
@@ -274,11 +278,16 @@ POST /api/rooms/{id}/ratings
   "eventType": "RATING_SUBMITTED",
   "roomId": "HBI7X92",
   "userId": 102,
-  "restaurantId": 14,
+  "foodId": 14,
   "score": 5,
   "occurredAt": "2026-08-23T10:15:30Z"
 }
 ```
+
+The same topic carries `PLAYER_FINISHED` (a player pressed BLEND NOW — consumed
+exactly like a rating: re-score, push progress, maybe finalise) and
+`DECISION_FINALIZED` (consumed by the room service, which moves the room to
+`DECIDED`).
 
 ### `hbi.room-events` — lobby changes reaching the browsers
 
@@ -310,7 +319,7 @@ therefore stay in order.
 
 ## Real-time communication
 
-HBI Web uses Socket.IO. HBI Cloud deliberately does **not** copy that: it uses
+HBI Web uses Socket.IO. HBI Microservices deliberately does **not** copy that: it uses
 **STOMP over WebSocket**, hosted by the rating service and proxied through the gateway.
 
 - Endpoint: `/ws`, reached at `ws://localhost:5173/ws` → gateway → rating service.
@@ -341,9 +350,10 @@ Every message uses one envelope:
 | `USER_LEFT` | someone leaves |
 | `ROOM_STATE_CHANGED` | the host advances the room |
 | `RATING_SUBMITTED` | a rating lands |
+| `PLAYER_FINISHED` | a player blends early (BLEND NOW) |
 | `RATING_PROGRESS` | group progress changes |
 | `RECOMMENDATIONS_GENERATED` | the ranking is recomputed |
-| `DECISION_FINALIZED` | the restaurant is chosen |
+| `DECISION_FINALIZED` | the group's top foods are locked in |
 
 The last four all originate from a Kafka consumer, so the diagram in the brief —
 *browser → gateway → service → Kafka → decision → WebSocket → all browsers* — is the
@@ -360,63 +370,62 @@ server, so there is no way for one service to read another's tables.
 |---|---|---|---|
 | user-service | `user_db` | 5433 | `hbi_user` |
 | room-service | `room_db` | 5434 | `room`, `room_member` |
-| restaurant-service | `restaurant_db` | 5435 | `restaurant` |
-| rating-service | `rating_db` | 5436 | `preference`, `rating`, `room_candidate`, `recommendation`, `decision` |
+| food-service | `food_db` | 5435 | `food_item` |
+| rating-service | `rating_db` | 5436 | `preference`, `rating`, `room_candidate`, `recommendation`, `player_done`, `decision` |
 
 When the rating service needs to know who is in a room, it calls
 `GET /api/rooms/{code}/members` on the room service. It never opens a connection to
 `room_db`.
 
-Schemas are created by Hibernate (`ddl-auto: update`) and `restaurant_db` is seeded on
-first boot with 33 restaurants across HBI's eight cuisines.
+Schemas are created by Hibernate (`ddl-auto: update`) and `food_db` is seeded on
+first boot with the HBI master food list — 48 dishes across HBI's eight cuisines,
+the same list HBI Web ships.
 
-### Demo restaurant data
+### Demo food data
 
-PostgreSQL is the single source of truth for restaurant data. `RestaurantSeeder`
-populates the `restaurant` table **only when it is empty**; after that, edit the
-data directly in `restaurant_db` — no Java changes, no extra config files.
+PostgreSQL is the single source of truth for food data. `FoodSeeder` populates the
+`food_item` table **only when it is empty**; after that, edit the data directly in
+`food_db` — no Java changes, no extra config files, no JSON data stores.
 
 Connect (stack running):
 
 ```bash
-docker compose exec restaurant-db psql -U hbi restaurant_db
-# or from the host: psql -h localhost -p 5435 -U hbi restaurant_db   (password: hbi)
+docker compose exec food-db psql -U hbi food_db
+# or from the host: psql -h localhost -p 5435 -U hbi food_db   (password: hbi)
 ```
 
-Columns: `name`, `cuisine`, `signature_dish`, `avg_cost_for_two` (rupees),
-`distance_km`, `base_rating` (display hint out of 5), `image_url`, `area`.
+Columns: `name` (unique — one row per dish), `cuisine`, `image_url`.
 
 ```sql
 -- inspect
-SELECT id, name, cuisine, signature_dish, avg_cost_for_two, area FROM restaurant;
+SELECT id, name, cuisine FROM food_item;
 
--- modify a restaurant / dish / image
-UPDATE restaurant SET name = 'New Name' WHERE id = 1;
-UPDATE restaurant SET signature_dish = 'Vada Pav', image_url = '/images/samosa.jpg' WHERE id = 2;
+-- modify a dish / image
+UPDATE food_item SET name = 'Vada Pav', image_url = '/images/samosa.jpg' WHERE id = 2;
 
 -- add one (image_url must point at a file in cloud/frontend/public/images/)
-INSERT INTO restaurant (name, cuisine, signature_dish, avg_cost_for_two, distance_km, base_rating, image_url, area)
-VALUES ('Chai Point', 'Beverages', 'Chai', 100, 0.5, 4.1, '/images/coffee.jpg', 'Vile Parle');
+INSERT INTO food_item (name, cuisine, image_url)
+VALUES ('Chai', 'Beverages', '/images/coffee.jpg');
 
 -- remove one
-DELETE FROM restaurant WHERE id = 3;
+DELETE FROM food_item WHERE id = 3;
 ```
 
 Changes are live immediately — the service reads the database on every request.
-(Rooms that already froze their shortlist keep rating the restaurants they started
-with; new rooms pick up the new data.)
+(Rooms that already froze their shortlist keep rating the foods they started with;
+new rooms pick up the new data.)
 
 To go back to the stock demo dataset, empty the table and restart the service so the
 seeder runs again:
 
 ```bash
-docker compose exec restaurant-db psql -U hbi restaurant_db -c "TRUNCATE restaurant"
-docker compose restart restaurant-service
+docker compose exec food-db psql -U hbi food_db -c "TRUNCATE food_item"
+docker compose restart food-service
 ```
 
 (`docker compose down -v` wipes all four databases and reseeds on the next start.)
 The seed list itself lives in
-`restaurant-service/src/main/java/io/hbi/cloud/restaurant/RestaurantSeeder.java` —
+`food-service/src/main/java/io/hbi/cloud/food/FoodSeeder.java` —
 edit it only if you want a different *default* dataset baked into the image.
 
 ### Room lifecycle
@@ -474,7 +483,7 @@ closing the tab ends the session. Tokens expire after `JWT_TTL_MINUTES`
   start if it is missing or shorter than 32 characters. There is no default in code.
 - The gateway **strips** any `X-User-Id` / `X-User-Name` a client tries to send before
   adding its own, so identity cannot be spoofed from outside.
-- Public routes: `POST /api/users/session`, `GET /api/restaurants/**`, `/ws/info`
+- Public routes: `POST /api/users/session`, `GET /api/foods/**`, `/ws/info`
   (a SockJS capability probe carrying no data), and the actuator health endpoints.
 - WebSocket upgrades are authenticated at the gateway from the `token` query
   parameter — see [Real-time communication](#real-time-communication).
@@ -483,25 +492,43 @@ closing the tab ends the session. Tokens expire after `JWT_TTL_MINUTES`
 
 ## Recommendation algorithm
 
-Deterministic and explainable — no machine learning. Each shortlisted restaurant gets
-five normalised (0–1) signals, combined with fixed weights:
+Deterministic and explainable — no machine learning. Each shortlisted food item gets
+three normalised (0–1) signals, combined with fixed weights:
 
 | Signal | Meaning | Weight |
 |---|---|---|
-| `groupRating` | average submitted score ÷ 5 | 0.50 |
-| `cuisineFit` | share of players who asked for that cuisine | 0.20 |
-| `budgetFit` | share of players whose budget covers it | 0.12 |
-| `distanceFit` | share of players willing to travel that far | 0.10 |
-| `coverage` | share of players who actually rated it | 0.08 |
+| `groupRating` | average submitted score ÷ 5 | 0.60 |
+| `cuisineFit` | share of players who asked for that cuisine | 0.25 |
+| `coverage` | share of players who actually rated it | 0.15 |
 
-Ties break on restaurant id, so the same inputs always produce the same ranking.
-A player who picks no cuisine counts as happy with everything.
+Ties break on food id, so the same inputs always produce the same ranking.
+A player who picks no cuisine counts as happy with everything. Coverage matters
+because players may finish early: a dish only part of the room ever saw should not
+outrank one everybody scored highly.
 
-The shortlist itself is built from the merged group preferences (union of cuisines,
-the most generous budget and distance in the room), capped at `BLEND_SHORTLIST_SIZE`
-(default 8) and then **frozen**, so a late joiner cannot change what everyone else is
-already rating. If nothing matches, it falls back to the full catalogue rather than
-showing an empty screen — the same safety net HBI Web has.
+The shortlist itself is built from the union of the group's cuisines, capped at
+`BLEND_SHORTLIST_SIZE` (default 12) and then **frozen**, so a late joiner cannot
+change what everyone else is already rating. Every food name is unique in the
+catalogue, so the same dish can never appear as two competing candidates. If nothing
+matches, it falls back to the full catalogue rather than showing an empty screen —
+the same safety net HBI Web has.
+
+### The early blend
+
+Nobody is forced to rate the whole shortlist:
+
+- **Players** may press **BLEND NOW** once they have rated at least *half the
+  shortlist, rounded up* (`minRatingsRequired` in every progress payload). The
+  server rejects earlier attempts with 409. Rating on to the end stays available.
+- **The host** may force the blend for the whole room once **at least 50% of the
+  currently active players** have rated that minimum. The threshold is computed
+  server-side from the room service's active-member list, so players who left
+  neither block the blend nor count toward it, and no frontend can bypass it.
+- The automatic decision still fires the moment every active player has finished —
+  fully rated or blended early.
+
+Both rules live in `BlendPolicy` (rating-service) with unit tests pinning the exact
+numbers.
 
 ---
 
@@ -513,7 +540,7 @@ Every service exposes Spring Boot Actuator:
 curl http://localhost:8080/actuator/health     # gateway
 curl http://localhost:8081/actuator/health     # user
 curl http://localhost:8082/actuator/health     # room
-curl http://localhost:8083/actuator/health     # restaurant
+curl http://localhost:8083/actuator/health     # food
 curl http://localhost:8084/actuator/health     # rating
 
 curl http://localhost:8084/actuator/info
@@ -536,7 +563,8 @@ mvn test
 ```
 
 `RecommendationEngineTest` covers the scoring: ranking by group rating, cuisine and
-budget/distance influence, tie-breaking determinism, and unrated candidates.
+coverage influence, tie-breaking determinism, and unrated candidates.
+`BlendPolicyTest` pins the early-blend minimum and the host 50% threshold.
 
 ### End-to-end smoke test
 
@@ -549,7 +577,7 @@ node scripts/smoke-test.mjs                        # Node 22+
 node --experimental-websocket scripts/smoke-test.mjs   # Node 21 and older
 ```
 
-It drives the complete journey through the gateway with two players — 53 assertions
+It drives the complete journey through the gateway with two players — 50+ assertions
 covering anonymous sessions, gateway authentication, catalogue filtering, rooms,
 preferences, rating, scoring, the decision and leaving.
 
@@ -562,7 +590,7 @@ The parts worth pointing at:
   WebSocket token are all rejected.
 - It checks that a non-host can neither advance the room nor finalise the blend.
 - It confirms the shortlist is frozen — both players get the same list — and that the
-  restaurant the group scored highest is the one actually chosen.
+  food the group scored highest is the one that tops the result.
 
 To see the events on the wire while it runs:
 
@@ -636,9 +664,8 @@ Known and deliberate:
   same list.
 - **No refresh tokens.** A session JWT lasts 12 hours by default; after that the
   player simply enters a name again.
-- **Restaurant data is fictional** and seeded locally. There is no maps or delivery
-  integration, and `distanceKm` is a fixed attribute rather than a real distance from
-  the user.
+- **The food catalogue is a fixed demo dataset** seeded locally. There is no maps
+  or delivery integration.
 - **Room cleanup is activity-based, not presence-based.** A player who closes the
   browser stays flagged active (a refresh must be able to resume, so a WebSocket
   drop never touches membership); an abandoned room therefore lingers until the

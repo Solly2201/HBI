@@ -48,7 +48,7 @@ function requestCounts(service, port) {
 // ------------------------------------------------------------------- spread
 
 if (MODE === 'spread') {
-  const service = process.argv[3] || 'restaurant-service';
+  const service = process.argv[3] || 'food-service';
   const port = process.argv[4] || '8083';
   const requests = Number(process.argv[5] || 300);
 
@@ -60,7 +60,7 @@ if (MODE === 'spread') {
   const batch = 20;
   for (let i = 0; i < requests; i += batch) {
     // eslint-disable-next-line no-await-in-loop
-    await Promise.all(Array.from({ length: batch }, () => call('GET', '/api/restaurants?cuisine=Indian')));
+    await Promise.all(Array.from({ length: batch }, () => call('GET', '/api/foods?cuisine=Indian')));
   }
   const ms = Date.now() - t0;
 

@@ -1,5 +1,5 @@
 /*
- * HBI Cloud styles.
+ * HBI Microservices styles.
  *
  * The palette, the Nunito typeface and the fully rounded buttons are taken
  * straight from HBI Web's style.css so the implementations read as the same
@@ -17,7 +17,7 @@
   --bg-color: #fff;
   --border-radius: 25px;
 
-  /* --- additions for the cloud UI ------------------------------------ */
+  /* --- additions for this implementation's UI ------------------------ */
   --surface: #fff7f7;
   --border: #f1d9d9;
   --muted: #7a6b6b;
@@ -419,23 +419,11 @@ main.page {
 
 /* ---------------------------------------------------------------- slider */
 
-.slider-row {
-  display: flex;
-  align-items: center;
-  gap: 14px;
-}
-
 input[type='range'] {
   flex: 1;
   accent-color: var(--red-color);
   height: 32px;
   cursor: pointer;
-}
-
-.slider-value {
-  font-weight: 900;
-  min-width: 92px;
-  text-align: right;
 }
 
 /* --------------------------------------------------- the food being rated */
@@ -472,13 +460,17 @@ input[type='range'] {
   font-size: 1.6rem;
 }
 
-.food-place {
-  margin: 0;
-  font-weight: 700;
-}
-
 .food-meta {
   margin: 0 0 4px;
+}
+
+.food-hint {
+  margin: 8px 0 0;
+  font-size: 0.85rem;
+}
+
+.food-card .btn + .btn {
+  margin-top: 8px;
 }
 
 .meter-title {
@@ -552,19 +544,8 @@ input[type='range'] {
   font-size: 0.9rem;
 }
 
-.winner {
-  display: flex;
-  gap: 20px;
-  align-items: center;
-  flex-wrap: wrap;
-}
-
-.winner img {
-  width: 190px;
-  height: 150px;
-  border-radius: 16px;
-  object-fit: cover;
-  background: var(--pink-color);
+.rank-list + .btn {
+  margin-top: 14px;
 }
 
 /* --------------------------------------------------------------- loader */
@@ -622,10 +603,6 @@ input[type='range'] {
   }
   .food-card img {
     height: 160px;
-  }
-  .winner img {
-    width: 100%;
-    height: 180px;
   }
 }
 

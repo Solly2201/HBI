@@ -49,7 +49,7 @@ await call('POST', `/api/rooms/${room}/join`, { token: guest.token });
 await call('PUT', `/api/rooms/${room}/status`, { token: host.token, body: { status: 'PREFERENCES' } });
 for (const u of [host, guest]) {
   await call('POST', `/api/rooms/${room}/preferences`, {
-    token: u.token, body: { cuisines: ['Indian', 'Chinese', 'Italian'], maxBudget: 900, maxDistanceKm: 9 },
+    token: u.token, body: { cuisines: ['Indian', 'Chinese', 'Italian'] },
   });
 }
 await call('PUT', `/api/rooms/${room}/status`, { token: host.token, body: { status: 'RATING' } });
@@ -77,7 +77,7 @@ async function worker() {
     const started = Date.now();
     // eslint-disable-next-line no-await-in-loop
     const res = await call('POST', `/api/rooms/${room}/ratings`, {
-      token, body: { restaurantId: r.id, score: (i % 5) + 1 },
+      token, body: { foodId: r.id, score: (i % 5) + 1 },
     });
     perRequest.push(Date.now() - started);
     if (res.status === 200) accepted += 1; else rejected += 1;

@@ -53,7 +53,7 @@ for (let i = 0; i < ROOMS; i += 1) {
     // eslint-disable-next-line no-await-in-loop
     await call('POST', `/api/rooms/${code}/preferences`, {
       token: p.token,
-      body: { cuisines: ['Indian', 'Chinese', 'Italian'], maxBudget: 900, maxDistanceKm: 9 },
+      body: { cuisines: ['Indian', 'Chinese', 'Italian'] },
     });
   }
   // eslint-disable-next-line no-await-in-loop
@@ -65,7 +65,7 @@ for (let i = 0; i < ROOMS; i += 1) {
   if (shortlist?.length) {
     // eslint-disable-next-line no-await-in-loop
     await call('POST', `/api/rooms/${code}/ratings`, {
-      token: host.token, body: { restaurantId: shortlist[0].id, score: 4 },
+      token: host.token, body: { foodId: shortlist[0].id, score: 4 },
     });
   }
 
@@ -74,23 +74,23 @@ for (let i = 0; i < ROOMS; i += 1) {
     hostToken: host.token,
     hostId: host.id,
     memberTokens: seated.map((s) => s.token),
-    restaurantIds: (shortlist || []).map((r) => r.id),
+    foodIds: (shortlist || []).map((r) => r.id),
   });
   if ((i + 1) % 5 === 0) console.log(`  ${i + 1}/${ROOMS} rooms`);
 }
 
-const catalogue = (await call('GET', '/api/restaurants')).data;
+const catalogue = (await call('GET', '/api/foods')).data;
 
 const fixture = {
   stamp: STAMP,
   users,
   rooms,
-  restaurantIds: catalogue.map((r) => r.id),
+  foodIds: catalogue.map((r) => r.id),
   cuisines: [...new Set(catalogue.map((r) => r.cuisine))],
 };
 
 const out = path.join(HERE, 'load-fixture.json');
 fs.writeFileSync(out, JSON.stringify(fixture, null, 2));
 console.log(`wrote ${out}`);
-console.log(`  users=${users.length} rooms=${rooms.length} restaurants=${fixture.restaurantIds.length}`);
-console.log(`  shortlist size per room=${rooms[0]?.restaurantIds.length}`);
+console.log(`  users=${users.length} rooms=${rooms.length} foods=${fixture.foodIds.length}`);
+console.log(`  shortlist size per room=${rooms[0]?.foodIds.length}`);

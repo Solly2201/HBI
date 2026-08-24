@@ -37,7 +37,7 @@ management:
 
 info:
   app:
-    name: HBI Cloud - User Service
+    name: HBI Microservices - User Service
     responsibility: Anonymous player sessions, JWT issuing, user profiles
 
 logging:

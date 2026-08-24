@@ -11,12 +11,12 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
- * Emits RATING_SUBMITTED.
+ * Emits the rating-flow events.
  *
  * Writing a rating and re-scoring the room are deliberately decoupled: the HTTP
  * call returns as soon as the rating is stored, and the decision engine picks
  * the event up asynchronously. That is the one place Kafka genuinely earns its
- * place in HBI Cloud.
+ * place in HBI Microservices.
  */
 @Component
 public class RatingEventPublisher {
@@ -32,17 +32,32 @@ public class RatingEventPublisher {
         this.topic = topic;
     }
 
-    public void ratingSubmitted(String roomCode, Long userId, Long restaurantId, Integer score) {
+    public void ratingSubmitted(String roomCode, Long userId, Long foodId, Integer score) {
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("eventType", "RATING_SUBMITTED");
         event.put("roomId", roomCode);
         event.put("userId", userId);
-        event.put("restaurantId", restaurantId);
+        event.put("foodId", foodId);
         event.put("score", score);
         event.put("occurredAt", Instant.now().toString());
 
         kafka.send(topic, roomCode, event);
-        log.info("published RATING_SUBMITTED room={} user={} restaurant={}", roomCode, userId, restaurantId);
+        log.info("published RATING_SUBMITTED room={} user={} food={}", roomCode, userId, foodId);
+    }
+
+    /**
+     * A player pressed BLEND NOW. The consumer treats it like a rating landing:
+     * re-score, push progress, and finalise if this was the last player out.
+     */
+    public void playerFinished(String roomCode, Long userId) {
+        Map<String, Object> event = new LinkedHashMap<>();
+        event.put("eventType", "PLAYER_FINISHED");
+        event.put("roomId", roomCode);
+        event.put("userId", userId);
+        event.put("occurredAt", Instant.now().toString());
+
+        kafka.send(topic, roomCode, event);
+        log.info("published PLAYER_FINISHED room={} user={}", roomCode, userId);
     }
 
     /**
@@ -51,15 +66,15 @@ public class RatingEventPublisher {
      * itself. Same topic and key as the rating events, so it is ordered after
      * the rating that triggered it.
      */
-    public void decisionFinalized(String roomCode, Long restaurantId, String decidedBy) {
+    public void decisionFinalized(String roomCode, Long foodId, String decidedBy) {
         Map<String, Object> event = new LinkedHashMap<>();
         event.put("eventType", "DECISION_FINALIZED");
         event.put("roomId", roomCode);
-        event.put("restaurantId", restaurantId);
+        event.put("foodId", foodId);
         event.put("decidedBy", decidedBy);
         event.put("occurredAt", Instant.now().toString());
 
         kafka.send(topic, roomCode, event);
-        log.info("published DECISION_FINALIZED room={} restaurant={}", roomCode, restaurantId);
+        log.info("published DECISION_FINALIZED room={} food={}", roomCode, foodId);
     }
 }

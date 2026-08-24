@@ -1,6 +1,12 @@
-# HBI Cloud Testing Report
+# HBI Microservices Testing Report
 
-A measurement pass over the existing HBI Cloud implementation. **No code was changed
+> Historical baseline (2026-08-23). The implementation was called "HBI Cloud" at
+> the time; it has since been renamed **HBI Microservices** — "cloud" now refers
+> only to a possible future deployment environment. Measurements, endpoint names
+> and results below are preserved exactly as recorded; later phases renamed the
+> restaurant service/endpoints to a food catalogue (see PROJECT_STATUS.md).
+
+A measurement pass over the existing distributed implementation. **No code was changed
 and nothing was optimised** — where a test exposed a bug or a limit, it is recorded
 here as found.
 
@@ -195,8 +201,8 @@ Run via `benchmarks/functional.mjs` (new; measurement tooling only).
 | Member count decrements | PASS |
 | A non-member cannot remove the host (403) | PASS |
 
-Worth calling out: HBI Web drops a player when their socket disconnects. **HBI Cloud
-does not** — membership only changes on an explicit `DELETE`. A user who closes their
+Worth calling out: HBI Web drops a player when their socket disconnects. **HBI
+Microservices does not** — membership only changes on an explicit `DELETE`. A user who closes their
 laptop stays in the room and keeps counting toward "all players finished". This is a
 behavioural divergence from the other two implementations, not a crash.
 
@@ -321,7 +327,7 @@ exhausted the 3.96 GB VM and **took the Docker engine down entirely**, requiring
 Docker Desktop restart.
 
 So: **the 250/500 figures characterise this test rig at least as much as they
-characterise HBI Cloud.** What can be stated without qualification is that the system
+characterise the application.** What can be stated without qualification is that the system
 handled **100 VUs with 0 % errors**, and that a separate run at 200 VUs also returned
 **0 % errors** across all seven endpoints (140 171 requests, peak 3 378 RPS).
 
@@ -521,7 +527,7 @@ Two resilience observations were nevertheless made incidentally and are real:
 1. **The stack survives its own overload.** After a 500-VU run that failed 95.8 % of
    requests, all 11 containers were still healthy with 0 restarts and 0 OOM-kills, and
    the system returned to normal service without intervention.
-2. **Docker Desktop itself was the thing that fell over**, not HBI Cloud — when a k6
+2. **Docker Desktop itself was the thing that fell over**, not the application — when a k6
    container was added inside the 3.96 GB VM, the Docker engine began returning HTTP 500
    and required a full restart. The application containers came back healthy in ~40 s
    with all data intact on the volumes.

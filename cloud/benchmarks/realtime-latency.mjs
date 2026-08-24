@@ -159,7 +159,7 @@ async function runIteration(i, host) {
     await call('PUT', `/api/rooms/${room}/status`, { token: host.token, body: { status: 'PREFERENCES' } });
     for (const u of [host, guest]) {
       await call('POST', `/api/rooms/${room}/preferences`, {
-        token: u.token, body: { cuisines: ['Indian', 'Chinese'], maxBudget: 900, maxDistanceKm: 9 },
+        token: u.token, body: { cuisines: ['Indian', 'Chinese'] },
       });
     }
     await call('PUT', `/api/rooms/${room}/status`, { token: host.token, body: { status: 'RATING' } });
@@ -170,7 +170,7 @@ async function runIteration(i, host) {
     seen.length = 0;
     t0 = Date.now();
     await call('POST', `/api/rooms/${room}/ratings`, {
-      token: host.token, body: { restaurantId: shortlist[0].id, score: 5 },
+      token: host.token, body: { foodId: shortlist[0].id, score: 5 },
     });
 
     ev = await expect(seen, 'RATING_SUBMITTED');
@@ -190,19 +190,19 @@ async function runIteration(i, host) {
     // ------------------------------------------------ DECISION_FINALIZED
     for (const r of shortlist) {
       await call('POST', `/api/rooms/${room}/ratings`, {
-        token: guest.token, body: { restaurantId: r.id, score: 4 },
+        token: guest.token, body: { foodId: r.id, score: 4 },
       });
     }
     for (let k = 1; k < shortlist.length; k += 1) {
       await call('POST', `/api/rooms/${room}/ratings`, {
-        token: host.token, body: { restaurantId: shortlist[k].id, score: 3 },
+        token: host.token, body: { foodId: shortlist[k].id, score: 3 },
       });
     }
     seen.length = 0;
     t0 = Date.now();
     // The rating that completes the room and triggers the decision.
     await call('POST', `/api/rooms/${room}/ratings`, {
-      token: host.token, body: { restaurantId: shortlist[0].id, score: 5 },
+      token: host.token, body: { foodId: shortlist[0].id, score: 5 },
     });
     ev = await expect(seen, 'DECISION_FINALIZED', null, EVENT_TIMEOUT_MS);
     if (ev) samples.DECISION_FINALIZED.push(ev.receivedAt - t0);

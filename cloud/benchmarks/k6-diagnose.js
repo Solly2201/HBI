@@ -41,7 +41,7 @@ export default function () {
     const t = pick(r.memberTokens, __VU);
     res = http.post(
       `${GATEWAY}/api/rooms/${r.code}/ratings`,
-      JSON.stringify({ restaurantId: pick(r.restaurantIds, __ITER), score: (__ITER % 5) + 1 }),
+      JSON.stringify({ foodId: pick(r.foodIds, __ITER), score: (__ITER % 5) + 1 }),
       auth(t)
     );
   } else if (EP === 'room_get') {
@@ -51,7 +51,7 @@ export default function () {
     const r = pick(fixture.rooms, __VU + __ITER);
     res = http.get(`${GATEWAY}/api/rooms/${r.code}/recommendations`, auth(r.hostToken));
   } else {
-    res = http.get(`${GATEWAY}/api/restaurants?cuisine=Indian`);
+    res = http.get(`${GATEWAY}/api/foods?cuisine=Indian`);
   }
 
   lat.add(res.timings.duration);

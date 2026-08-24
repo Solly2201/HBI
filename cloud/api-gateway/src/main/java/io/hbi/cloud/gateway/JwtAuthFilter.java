@@ -23,7 +23,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.List;
 
 /**
- * The single place HBI Cloud checks who is calling.
+ * The single place HBI Microservices checks who is calling.
  *
  * Every /api/** request must carry a valid Bearer token, except the handful of
  * public endpoints listed below. Downstream services never parse the JWT
@@ -43,8 +43,8 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
             "/actuator/info",
             "/actuator/metrics");
 
-    /** Browsing the catalogue does not require an account. */
-    private static final String RESTAURANTS_PREFIX = "/api/restaurants";
+    /** Browsing the food catalogue does not require a session. */
+    private static final String FOODS_PREFIX = "/api/foods";
 
     private final SecretKey key;
 
@@ -117,7 +117,7 @@ public class JwtAuthFilter implements GlobalFilter, Ordered {
         if (path.equals("/ws/info")) {
             return true;
         }
-        return HttpMethod.GET.equals(method) && path.startsWith(RESTAURANTS_PREFIX);
+        return HttpMethod.GET.equals(method) && path.startsWith(FOODS_PREFIX);
     }
 
     private boolean isValid(String token) {

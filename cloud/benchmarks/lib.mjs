@@ -1,5 +1,5 @@
 /**
- * Shared helpers for the HBI Cloud measurement scripts.
+ * Shared helpers for the HBI Microservices measurement scripts.
  *
  * Everything goes through the API Gateway, exactly as a browser would.
  */

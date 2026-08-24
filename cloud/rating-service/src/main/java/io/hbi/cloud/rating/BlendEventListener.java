@@ -1,6 +1,6 @@
 package io.hbi.cloud.rating;
 
-import io.hbi.cloud.rating.RecommendationEngine.ScoredRestaurant;
+import io.hbi.cloud.rating.RecommendationEngine.ScoredFood;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -11,7 +11,7 @@ import java.util.List;
 import java.util.Map;
 
 /**
- * The asynchronous half of HBI Cloud.
+ * The asynchronous half of HBI Microservices.
  *
  *   room-service --(hbi.room-events)--> here --> STOMP --> browsers
  *   this service --(hbi.ratings)------> here --> scoring --> STOMP --> browsers
@@ -53,8 +53,9 @@ public class BlendEventListener {
     }
 
     /**
-     * A rating landed. Re-score the room, push the new ranking, and if everyone
-     * has finished, lock the answer in.
+     * A rating landed, or a player blended early. Either way: re-score the
+     * room, push the new ranking, and if every active player has now finished,
+     * lock the answer in.
      */
     @KafkaListener(topics = "${hbi.kafka.ratings-topic}", groupId = "${hbi.kafka.group-id}")
     public void onRatingSubmitted(Map<String, Object> event) {
@@ -64,20 +65,24 @@ public class BlendEventListener {
             return;
         }
         // The topic also carries DECISION_FINALIZED, which exists for the room
-        // service (it marks the room DECIDED). Scoring only reacts to ratings.
+        // service (it marks the room DECIDED). Scoring only reacts to ratings
+        // and early finishes.
         String type = str(event.get("eventType"));
-        if (type != null && !"RATING_SUBMITTED".equals(type)) {
+        boolean scoringEvent = type == null
+                || "RATING_SUBMITTED".equals(type) || "PLAYER_FINISHED".equals(type);
+        if (!scoringEvent) {
             return;
         }
-        log.info("kafka <- RATING_SUBMITTED for room {}", roomCode);
+        String label = type == null ? "RATING_SUBMITTED" : type;
+        log.info("kafka <- {} for room {}", label, roomCode);
 
         // No blanket catch here: a failure propagates to the container's
         // DefaultErrorHandler, which retries a bounded number of times and
         // then parks the record on the dead letter topic (KafkaErrorConfig).
-        broadcaster.send(roomCode, "RATING_SUBMITTED", event);
+        broadcaster.send(roomCode, label, event);
         broadcaster.send(roomCode, "RATING_PROGRESS", blend.progress(roomCode));
 
-        List<ScoredRestaurant> scored = blend.recomputeRecommendations(roomCode);
+        List<ScoredFood> scored = blend.recomputeRecommendations(roomCode);
         if (!scored.isEmpty()) {
             broadcaster.send(roomCode, "RECOMMENDATIONS_GENERATED", blend.storedRecommendations(roomCode));
         }

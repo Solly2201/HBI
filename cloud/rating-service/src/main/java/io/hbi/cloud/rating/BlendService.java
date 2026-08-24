@@ -2,11 +2,13 @@ package io.hbi.cloud.rating;
 
 import io.hbi.cloud.rating.Entities.Candidate;
 import io.hbi.cloud.rating.Entities.Decision;
+import io.hbi.cloud.rating.Entities.PlayerDone;
 import io.hbi.cloud.rating.Entities.Preference;
 import io.hbi.cloud.rating.Entities.Rating;
 import io.hbi.cloud.rating.Entities.Recommendation;
-import io.hbi.cloud.rating.RecommendationEngine.ScoredRestaurant;
-import io.hbi.cloud.rating.RestaurantClient.RestaurantView;
+import io.hbi.cloud.rating.FoodClient.FoodView;
+import io.hbi.cloud.rating.RecommendationEngine.ScoredFood;
+import io.hbi.cloud.rating.RoomClient.Member;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -17,7 +19,6 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.ArrayList;
-import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
@@ -27,7 +28,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 
 /**
- * The HBI blend, server side: preferences in, a restaurant out.
+ * The HBI blend, server side: cuisines in, the group's top foods out.
  */
 @Service
 public class BlendService {
@@ -39,7 +40,8 @@ public class BlendService {
     private final RecommendationRepository recommendations;
     private final DecisionRepository decisions;
     private final CandidateRepository candidates;
-    private final RestaurantClient restaurantClient;
+    private final PlayerDoneRepository playerDone;
+    private final FoodClient foodClient;
     private final RoomClient roomClient;
     private final RecommendationEngine engine;
     private final RatingEventPublisher events;
@@ -50,17 +52,19 @@ public class BlendService {
                         RecommendationRepository recommendations,
                         DecisionRepository decisions,
                         CandidateRepository candidates,
-                        RestaurantClient restaurantClient,
+                        PlayerDoneRepository playerDone,
+                        FoodClient foodClient,
                         RoomClient roomClient,
                         RecommendationEngine engine,
                         RatingEventPublisher events,
-                        @Value("${hbi.blend.shortlist-size:8}") int shortlistSize) {
+                        @Value("${hbi.blend.shortlist-size:12}") int shortlistSize) {
         this.preferences = preferences;
         this.ratings = ratings;
         this.recommendations = recommendations;
         this.decisions = decisions;
         this.candidates = candidates;
-        this.restaurantClient = restaurantClient;
+        this.playerDone = playerDone;
+        this.foodClient = foodClient;
         this.roomClient = roomClient;
         this.engine = engine;
         this.events = events;
@@ -70,13 +74,10 @@ public class BlendService {
     // ---------------------------------------------------------------- prefs
 
     @Transactional
-    public Preference savePreference(String roomCode, Long userId, List<String> cuisines,
-                                     Integer maxBudget, Double maxDistanceKm) {
+    public Preference savePreference(String roomCode, Long userId, List<String> cuisines) {
         Preference pref = preferences.findByRoomCodeAndUserId(roomCode, userId)
                 .orElseGet(() -> new Preference(roomCode, userId));
         pref.setCuisines(cuisines);
-        pref.setMaxBudget(maxBudget);
-        pref.setMaxDistanceKm(maxDistanceKm);
         pref.touch();
         return preferences.save(pref);
     }
@@ -85,23 +86,16 @@ public class BlendService {
         return preferences.findByRoomCode(roomCode);
     }
 
-    /** Union of everyone's cuisines, and the most generous budget/distance in the room. */
+    /** Union of everyone's cuisines. */
     public Map<String, Object> aggregatePreferences(String roomCode) {
         List<Preference> all = preferences.findByRoomCode(roomCode);
         Set<String> cuisines = new LinkedHashSet<>();
         all.forEach(p -> cuisines.addAll(p.cuisineList()));
 
-        Integer budget = all.stream().map(Preference::getMaxBudget)
-                .filter(java.util.Objects::nonNull).max(Comparator.naturalOrder()).orElse(null);
-        Double distance = all.stream().map(Preference::getMaxDistanceKm)
-                .filter(java.util.Objects::nonNull).max(Comparator.naturalOrder()).orElse(null);
-
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("roomId", roomCode);
         out.put("submittedBy", all.size());
         out.put("cuisines", List.copyOf(cuisines));
-        out.put("maxBudget", budget);
-        out.put("maxDistanceKm", distance);
         return out;
     }
 
@@ -117,27 +111,24 @@ public class BlendService {
      * the unique-constraint violation would only surface at commit, past any
      * chance of handling it.
      */
-    public List<RestaurantView> candidatesFor(String roomCode) {
+    public List<FoodView> candidatesFor(String roomCode) {
         List<Candidate> existing = candidates.findByRoomCodeOrderByPositionAsc(roomCode);
         if (!existing.isEmpty()) {
-            return orderAsShortlist(existing, restaurantClient.byIds(
-                    existing.stream().map(Candidate::getRestaurantId).toList()));
+            return orderAsShortlist(existing, foodClient.byIds(
+                    existing.stream().map(Candidate::getFoodId).toList()));
         }
 
         @SuppressWarnings("unchecked")
-        Map<String, Object> agg = aggregatePreferences(roomCode);
-        List<String> cuisines = (List<String>) agg.get("cuisines");
-        Integer budget = (Integer) agg.get("maxBudget");
-        Double distance = (Double) agg.get("maxDistanceKm");
+        List<String> cuisines = (List<String>) aggregatePreferences(roomCode).get("cuisines");
 
-        List<RestaurantView> found = restaurantClient.search(cuisines, budget, distance);
+        List<FoodView> found = foodClient.search(cuisines);
         if (found.isEmpty()) {
             // Same safety net as HBI Web: never show an empty rating screen.
-            log.info("no restaurant matched the preferences for room {}, falling back to the full catalogue", roomCode);
-            found = restaurantClient.search(List.of(), null, null);
+            log.info("no food matched the preferences for room {}, falling back to the full catalogue", roomCode);
+            found = foodClient.search(List.of());
         }
 
-        List<RestaurantView> shortlist = found.stream().limit(shortlistSize).toList();
+        List<FoodView> shortlist = found.stream().limit(shortlistSize).toList();
         List<Candidate> rows = new ArrayList<>();
         for (int i = 0; i < shortlist.size(); i++) {
             rows.add(new Candidate(roomCode, shortlist.get(i).id(), i + 1));
@@ -151,51 +142,44 @@ public class BlendService {
             List<Candidate> frozen = candidates.findByRoomCodeOrderByPositionAsc(roomCode);
             log.info("shortlist for room {} was frozen concurrently, using the existing {} rows",
                     roomCode, frozen.size());
-            return orderAsShortlist(frozen, restaurantClient.byIds(
-                    frozen.stream().map(Candidate::getRestaurantId).toList()));
+            return orderAsShortlist(frozen, foodClient.byIds(
+                    frozen.stream().map(Candidate::getFoodId).toList()));
         }
-        log.info("froze a shortlist of {} restaurants for room {}", shortlist.size(), roomCode);
+        log.info("froze a shortlist of {} food items for room {}", shortlist.size(), roomCode);
         return shortlist;
     }
 
-    private List<RestaurantView> orderAsShortlist(List<Candidate> order, List<RestaurantView> fetched) {
-        Map<Long, RestaurantView> byId = fetched.stream()
-                .collect(Collectors.toMap(RestaurantView::id, r -> r, (a, b) -> a));
-        return order.stream().map(c -> byId.get(c.getRestaurantId()))
+    private List<FoodView> orderAsShortlist(List<Candidate> order, List<FoodView> fetched) {
+        Map<Long, FoodView> byId = fetched.stream()
+                .collect(Collectors.toMap(FoodView::id, f -> f, (a, b) -> a));
+        return order.stream().map(c -> byId.get(c.getFoodId()))
                 .filter(java.util.Objects::nonNull).toList();
     }
 
     // -------------------------------------------------------------- ratings
 
     /**
-     * Stores one player's score for one restaurant.
+     * Stores one player's score for one food item.
      *
-     * The restaurant must be on the room's frozen shortlist: a rating for
-     * anything else is rejected, because bogus ids would otherwise count
-     * toward "everyone has finished" and could force a group decision built
-     * on restaurants nobody is actually rating.
+     * The food must be on the room's frozen shortlist: a rating for anything
+     * else is rejected, because bogus ids would otherwise count toward
+     * "everyone has finished" and could force a group decision built on foods
+     * nobody is actually rating.
      */
     @Transactional
-    public Rating saveRating(String roomCode, Long userId, Long restaurantId, Integer score) {
-        Set<Long> candidateIds = candidates.findByRoomCodeOrderByPositionAsc(roomCode).stream()
-                .map(Candidate::getRestaurantId).collect(Collectors.toSet());
-        if (candidateIds.isEmpty()) {
-            // Rating before anyone fetched the shortlist: freeze it now, the
-            // same way GET /candidates would have.
-            candidateIds = candidatesFor(roomCode).stream()
-                    .map(RestaurantView::id).collect(Collectors.toSet());
-        }
+    public Rating saveRating(String roomCode, Long userId, Long foodId, Integer score) {
+        Set<Long> candidateIds = candidateIdsFreezingIfNeeded(roomCode);
         if (candidateIds.isEmpty()) {
             throw new ResponseStatusException(HttpStatus.CONFLICT,
                     "This room has no shortlist to rate yet.");
         }
-        if (!candidateIds.contains(restaurantId)) {
+        if (!candidateIds.contains(foodId)) {
             throw new ResponseStatusException(HttpStatus.UNPROCESSABLE_ENTITY,
-                    "Restaurant " + restaurantId + " is not on this room's shortlist.");
+                    "Food " + foodId + " is not on this room's shortlist.");
         }
 
-        Rating rating = ratings.findByRoomCodeAndUserIdAndRestaurantId(roomCode, userId, restaurantId)
-                .orElseGet(() -> new Rating(roomCode, userId, restaurantId, score));
+        Rating rating = ratings.findByRoomCodeAndUserIdAndFoodId(roomCode, userId, foodId)
+                .orElseGet(() -> new Rating(roomCode, userId, foodId, score));
         rating.setScore(score);
         return ratings.save(rating);
     }
@@ -204,54 +188,120 @@ public class BlendService {
         return ratings.findByRoomCode(roomCode);
     }
 
-    /** How far through rating the group is. Only shortlist ratings count. */
-    public Map<String, Object> progress(String roomCode) {
-        int members = roomClient.activeMembers(roomCode).size();
-        Set<Long> candidateIds = candidates.findByRoomCodeOrderByPositionAsc(roomCode).stream()
-                .map(Candidate::getRestaurantId).collect(Collectors.toSet());
-        int shortlist = candidateIds.size();
-        // Ratings for restaurants outside the shortlist (possible in data
-        // written before validation existed) must not count toward completion.
-        List<Rating> all = ratings.findByRoomCode(roomCode).stream()
-                .filter(r -> candidateIds.contains(r.getRestaurantId())).toList();
+    private Set<Long> candidateIdsFreezingIfNeeded(String roomCode) {
+        Set<Long> ids = candidates.findByRoomCodeOrderByPositionAsc(roomCode).stream()
+                .map(Candidate::getFoodId).collect(Collectors.toSet());
+        if (ids.isEmpty()) {
+            // Acting before anyone fetched the shortlist: freeze it now, the
+            // same way GET /candidates would have.
+            ids = candidatesFor(roomCode).stream().map(FoodView::id).collect(Collectors.toSet());
+        }
+        return ids;
+    }
 
+    /**
+     * How far through rating the group is, and what each side of the early
+     * blend is allowed to do.
+     *
+     * A player counts as finished when they have rated the whole shortlist, or
+     * when they pressed BLEND NOW after reaching the minimum. Only currently
+     * active members count — someone who left neither blocks the room nor
+     * pads the host's threshold.
+     */
+    public Map<String, Object> progress(String roomCode) {
+        List<Member> active = roomClient.activeMembers(roomCode);
+        Set<Long> activeIds = active.stream().map(Member::userId).collect(Collectors.toSet());
+
+        Set<Long> candidateIds = candidates.findByRoomCodeOrderByPositionAsc(roomCode).stream()
+                .map(Candidate::getFoodId).collect(Collectors.toSet());
+        int shortlist = candidateIds.size();
+        int minRequired = shortlist == 0 ? 0 : BlendPolicy.minRatingsRequired(shortlist);
+
+        // Ratings for foods outside the shortlist must not count.
+        List<Rating> all = ratings.findByRoomCode(roomCode).stream()
+                .filter(r -> candidateIds.contains(r.getFoodId())).toList();
         Map<Long, Long> perUser = all.stream()
                 .collect(Collectors.groupingBy(Rating::getUserId, Collectors.counting()));
-        long finished = shortlist == 0 ? 0 : perUser.values().stream().filter(c -> c >= shortlist).count();
+        Set<Long> doneIds = playerDone.findByRoomCode(roomCode).stream()
+                .map(PlayerDone::getUserId).collect(Collectors.toSet());
+
+        List<Long> finishedIds = activeIds.stream()
+                .filter(u -> {
+                    long count = perUser.getOrDefault(u, 0L);
+                    return shortlist > 0
+                            && (count >= shortlist || (doneIds.contains(u) && count >= minRequired));
+                })
+                .sorted().toList();
+        long eligible = activeIds.stream()
+                .filter(u -> minRequired > 0 && perUser.getOrDefault(u, 0L) >= minRequired).count();
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("roomId", roomCode);
-        out.put("membersTotal", members);
-        out.put("membersFinished", finished);
+        out.put("membersTotal", active.size());
+        out.put("membersFinished", finishedIds.size());
+        out.put("membersEligible", eligible);
         out.put("shortlistSize", shortlist);
+        out.put("minRatingsRequired", minRequired);
         out.put("ratingsSubmitted", all.size());
-        out.put("complete", members > 0 && shortlist > 0 && finished >= members);
+        out.put("hostCanFinalize", BlendPolicy.hostMayFinalize(active.size(), (int) eligible));
+        out.put("finishedUserIds", finishedIds);
+        out.put("complete", !active.isEmpty() && shortlist > 0 && finishedIds.size() >= active.size());
         return out;
     }
 
-    /** True once every active player has rated every restaurant on the shortlist. */
+    /** True once every active player has finished (fully rated or blended early). */
     public boolean everyoneHasFinished(String roomCode) {
         return Boolean.TRUE.equals(progress(roomCode).get("complete"));
+    }
+
+    // ------------------------------------------------------------ blend now
+
+    /**
+     * A player declares "I have rated enough — use my current ratings."
+     * Only allowed once they have rated the minimum number of shortlist foods.
+     * Idempotent: pressing BLEND NOW twice is one row.
+     */
+    public Map<String, Object> markPlayerDone(String roomCode, Long userId) {
+        Set<Long> candidateIds = candidateIdsFreezingIfNeeded(roomCode);
+        if (candidateIds.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "This room has no shortlist to rate yet.");
+        }
+        int minRequired = BlendPolicy.minRatingsRequired(candidateIds.size());
+        long mine = ratings.findByRoomCode(roomCode).stream()
+                .filter(r -> r.getUserId().equals(userId) && candidateIds.contains(r.getFoodId()))
+                .count();
+        if (mine < minRequired) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Rate at least " + minRequired + " foods before blending (you have rated " + mine + ").");
+        }
+        try {
+            playerDone.save(new PlayerDone(roomCode, userId));
+        } catch (DataIntegrityViolationException e) {
+            // Already marked done - fine, the outcome is identical.
+        }
+        log.info("player {} blended early in room {} after {} ratings", userId, roomCode, mine);
+        return progress(roomCode);
     }
 
     // ------------------------------------------------------ recommendations
 
     /** Re-runs the scoring for a room and replaces the stored ranking. */
     @Transactional
-    public List<ScoredRestaurant> recomputeRecommendations(String roomCode) {
-        List<RestaurantView> shortlist = candidatesFor(roomCode);
+    public List<ScoredFood> recomputeRecommendations(String roomCode) {
+        List<FoodView> shortlist = candidatesFor(roomCode);
         if (shortlist.isEmpty()) {
             return List.of();
         }
         int members = Math.max(roomClient.activeMembers(roomCode).size(), 1);
-        List<ScoredRestaurant> scored = engine.score(shortlist,
+        List<ScoredFood> scored = engine.score(shortlist,
                 ratings.findByRoomCode(roomCode), preferences.findByRoomCode(roomCode), members);
 
         recommendations.deleteByRoomCode(roomCode);
         recommendations.flush();
         List<Recommendation> rows = new ArrayList<>();
         for (int i = 0; i < scored.size(); i++) {
-            rows.add(new Recommendation(roomCode, scored.get(i).restaurant().id(), i + 1, scored.get(i).score()));
+            rows.add(new Recommendation(roomCode, scored.get(i).food().id(), i + 1, scored.get(i).score()));
         }
         recommendations.saveAll(rows);
         return scored;
@@ -267,21 +317,21 @@ public class BlendService {
      * recomputing on read is cheaper than explaining the staleness.
      */
     public List<Map<String, Object>> liveRecommendations(String roomCode) {
-        List<RestaurantView> shortlist = candidatesFor(roomCode);
+        List<FoodView> shortlist = candidatesFor(roomCode);
         if (shortlist.isEmpty()) {
             return List.of();
         }
         int members = Math.max(roomClient.activeMembers(roomCode).size(), 1);
-        List<ScoredRestaurant> scored = engine.score(shortlist,
+        List<ScoredFood> scored = engine.score(shortlist,
                 ratings.findByRoomCode(roomCode), preferences.findByRoomCode(roomCode), members);
 
         List<Map<String, Object>> out = new ArrayList<>();
         for (int i = 0; i < scored.size(); i++) {
-            ScoredRestaurant s = scored.get(i);
+            ScoredFood s = scored.get(i);
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("rank", i + 1);
             m.put("score", s.score());
-            m.put("restaurant", s.restaurant());
+            m.put("food", s.food());
             m.put("groupRating", s.groupRating());
             m.put("ratingCount", s.ratingCount());
             out.add(m);
@@ -289,21 +339,21 @@ public class BlendService {
         return out;
     }
 
-    /** The stored ranking, hydrated with restaurant details for the UI. */
+    /** The stored ranking, hydrated with food details for the UI. */
     public List<Map<String, Object>> storedRecommendations(String roomCode) {
         List<Recommendation> rows = recommendations.findByRoomCodeOrderByPositionAsc(roomCode);
         if (rows.isEmpty()) {
             return List.of();
         }
-        Map<Long, RestaurantView> byId = restaurantClient
-                .byIds(rows.stream().map(Recommendation::getRestaurantId).toList()).stream()
-                .collect(Collectors.toMap(RestaurantView::id, r -> r, (a, b) -> a));
+        Map<Long, FoodView> byId = foodClient
+                .byIds(rows.stream().map(Recommendation::getFoodId).toList()).stream()
+                .collect(Collectors.toMap(FoodView::id, f -> f, (a, b) -> a));
 
         return rows.stream().map(rec -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("rank", rec.getPosition());
             m.put("score", rec.getScore());
-            m.put("restaurant", byId.get(rec.getRestaurantId()));
+            m.put("food", byId.get(rec.getFoodId()));
             m.put("generatedAt", rec.getGeneratedAt().toString());
             return m;
         }).toList();
@@ -312,7 +362,31 @@ public class BlendService {
     // ------------------------------------------------------------- decision
 
     /**
-     * Locks in the top-ranked restaurant. Idempotent: once a room has decided,
+     * The host cuts the blend short — allowed only once at least half of the
+     * active players have rated the minimum. The threshold lives here, on the
+     * server, so no amount of frontend creativity can bypass it. Once a room
+     * has decided, the check is skipped and the existing decision is returned,
+     * which keeps repeated calls harmless.
+     */
+    public Map<String, Object> hostFinalise(String roomCode) {
+        Optional<Decision> already = decisions.findByRoomCode(roomCode);
+        if (already.isPresent()) {
+            return decisionView(already.get());
+        }
+
+        Map<String, Object> progress = progress(roomCode);
+        if (!Boolean.TRUE.equals(progress.get("hostCanFinalize"))) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "Not enough players have rated yet - at least half of the active players must rate "
+                            + progress.get("minRatingsRequired") + " foods first.");
+        }
+        return finalise(roomCode, "HOST")
+                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
+                        "Nothing to decide yet - submit some ratings first."));
+    }
+
+    /**
+     * Locks in the top-ranked food. Idempotent: once a room has decided,
      * the existing decision is returned unchanged.
      */
     @Transactional
@@ -322,18 +396,25 @@ public class BlendService {
             return already.map(this::decisionView);
         }
 
-        List<ScoredRestaurant> scored = recomputeRecommendations(roomCode);
+        List<ScoredFood> scored = recomputeRecommendations(roomCode);
         if (scored.isEmpty()) {
             return Optional.empty();
         }
-        ScoredRestaurant winner = scored.get(0);
-        Decision decision = decisions.save(
-                new Decision(roomCode, winner.restaurant().id(), winner.score(), decidedBy));
-        log.info("room {} decided on {} (score {})", roomCode, winner.restaurant().name(), winner.score());
+        ScoredFood winner = scored.get(0);
+        Decision decision;
+        try {
+            decision = decisions.save(
+                    new Decision(roomCode, winner.food().id(), winner.score(), decidedBy));
+        } catch (DataIntegrityViolationException e) {
+            // Two finalisations raced (say, host force and the AUTO consumer);
+            // the unique room_code constraint kept it to one row. Return it.
+            return decisions.findByRoomCode(roomCode).map(this::decisionView);
+        }
+        log.info("room {} decided on {} (score {})", roomCode, winner.food().name(), winner.score());
 
         // Tell the room service, which owns room state, that this blend is
         // over so it can move the room to DECIDED and stop admitting players.
-        events.decisionFinalized(roomCode, winner.restaurant().id(), decidedBy);
+        events.decisionFinalized(roomCode, winner.food().id(), decidedBy);
         return Optional.of(decisionView(decision));
     }
 
@@ -353,17 +434,18 @@ public class BlendService {
         candidates.deleteByRoomCode(roomCode);
         recommendations.deleteByRoomCode(roomCode);
         decisions.deleteByRoomCode(roomCode);
+        playerDone.deleteByRoomCode(roomCode);
         log.info("purged rating data for deleted room {}", roomCode);
     }
 
     private Map<String, Object> decisionView(Decision d) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("roomId", d.getRoomCode());
-        m.put("restaurantId", d.getRestaurantId());
+        m.put("foodId", d.getFoodId());
         m.put("finalScore", d.getFinalScore());
         m.put("decidedBy", d.getDecidedBy());
         m.put("decidedAt", d.getDecidedAt().toString());
-        m.put("restaurant", restaurantClient.byIds(List.of(d.getRestaurantId())).stream().findFirst().orElse(null));
+        m.put("food", foodClient.byIds(List.of(d.getFoodId())).stream().findFirst().orElse(null));
         return m;
     }
 }

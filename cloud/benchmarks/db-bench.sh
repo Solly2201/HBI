@@ -19,16 +19,16 @@ user-db|user_db|User lookup by id|select * from hbi_user where id = 1
 room-db|room_db|Room lookup by code|select * from room where code = (select code from room limit 1)
 room-db|room_db|Room members by code|select * from room_member where room_code = (select code from room limit 1) order by joined_at asc
 room-db|room_db|Active member count|select count(*) from room_member where room_code = (select code from room limit 1) and active = true
-restaurant-db|restaurant_db|Restaurant full catalogue|select * from restaurant order by id asc
-restaurant-db|restaurant_db|Restaurant search by cuisine|select * from restaurant where lower(cuisine) in ('chinese','italian') order by id asc
-restaurant-db|restaurant_db|Restaurant search cuisine+budget+distance|select * from restaurant where lower(cuisine) in ('indian','chinese','italian') and avg_cost_for_two <= 900 and distance_km <= 9 order by id asc
-restaurant-db|restaurant_db|Restaurant bulk lookup by ids|select * from restaurant where id in (1,2,3,4,5,6,7,8) order by id asc
+food-db|food_db|Food full catalogue|select * from food_item order by id asc
+food-db|food_db|Food search by cuisine|select * from food_item where lower(cuisine) in ('chinese','italian') order by id asc
+food-db|food_db|Food search several cuisines|select * from food_item where lower(cuisine) in ('indian','chinese','italian') order by id asc
+food-db|food_db|Food bulk lookup by ids|select * from food_item where id in (1,2,3,4,5,6,7,8) order by id asc
 rating-db|rating_db|Ratings for a room|select * from rating where room_code = (select room_code from rating limit 1)
 rating-db|rating_db|Preferences for a room|select * from preference where room_code = (select room_code from preference limit 1)
 rating-db|rating_db|Candidates for a room|select * from room_candidate where room_code = (select room_code from room_candidate limit 1) order by position_no asc
 rating-db|rating_db|Recommendations for a room|select * from recommendation where room_code = (select room_code from recommendation limit 1) order by position_no asc
 rating-db|rating_db|Decision for a room|select * from decision where room_code = (select room_code from decision limit 1)
-rating-db|rating_db|Rating upsert lookup (unique key)|select * from rating where room_code = (select room_code from rating limit 1) and user_id = (select user_id from rating limit 1) and restaurant_id = (select restaurant_id from rating limit 1)
+rating-db|rating_db|Rating upsert lookup (unique key)|select * from rating where room_code = (select room_code from rating limit 1) and user_id = (select user_id from rating limit 1) and food_id = (select food_id from rating limit 1)
 SQL
 )
 
@@ -36,7 +36,7 @@ echo "=============================================================="
 echo "TABLE SIZES"
 echo "=============================================================="
 printf "%-16s %-24s %10s\n" "DATABASE" "TABLE" "ROWS"
-for pair in "user-db:user_db" "room-db:room_db" "restaurant-db:restaurant_db" "rating-db:rating_db"; do
+for pair in "user-db:user_db" "room-db:room_db" "food-db:food_db" "rating-db:rating_db"; do
   svc=${pair%%:*}; db=${pair##*:}
   tables=$(docker compose exec -T "$svc" psql -U "$USER" -d "$db" -tAc \
     "select tablename from pg_tables where schemaname='public' order by tablename" 2>/dev/null)
@@ -82,7 +82,7 @@ echo ""
 echo "=============================================================="
 echo "INDEXES PRESENT"
 echo "=============================================================="
-for pair in "user-db:user_db" "room-db:room_db" "restaurant-db:restaurant_db" "rating-db:rating_db"; do
+for pair in "user-db:user_db" "room-db:room_db" "food-db:food_db" "rating-db:rating_db"; do
   svc=${pair%%:*}; db=${pair##*:}
   echo "--- $db"
   docker compose exec -T "$svc" psql -U "$USER" -d "$db" -tAc \
@@ -94,7 +94,7 @@ echo "=============================================================="
 echo "SEQUENTIAL VS INDEX SCANS (pg_stat_user_tables)"
 echo "=============================================================="
 printf "%-16s %-22s %10s %10s %12s\n" "DATABASE" "TABLE" "SEQ_SCAN" "IDX_SCAN" "LIVE_ROWS"
-for pair in "user-db:user_db" "room-db:room_db" "restaurant-db:restaurant_db" "rating-db:rating_db"; do
+for pair in "user-db:user_db" "room-db:room_db" "food-db:food_db" "rating-db:rating_db"; do
   svc=${pair%%:*}; db=${pair##*:}
   docker compose exec -T "$svc" psql -U "$USER" -d "$db" -tAc \
     "select relname||'|'||seq_scan||'|'||coalesce(idx_scan,0)||'|'||n_live_tup from pg_stat_user_tables order by relname" 2>/dev/null \

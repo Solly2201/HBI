@@ -3,7 +3,7 @@
   "private": true,
   "version": "1.0.0",
   "type": "module",
-  "description": "HBI Cloud web client - talks only to the API Gateway",
+  "description": "HBI web client - talks only to the API Gateway",
   "scripts": {
     "dev": "vite",
     "build": "vite build",

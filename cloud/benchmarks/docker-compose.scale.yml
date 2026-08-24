@@ -6,10 +6,10 @@
 # name. Nothing about the application changes.
 #
 #   docker compose -f docker-compose.yml -f benchmarks/docker-compose.scale.yml \
-#     up -d --scale restaurant-service=3
+#     up -d --scale food-service=3
 
 services:
-  restaurant-service:
+  food-service:
     ports: !reset []
   user-service:
     ports: !reset []

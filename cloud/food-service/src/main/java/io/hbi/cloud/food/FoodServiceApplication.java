@@ -1,12 +1,12 @@
-package io.hbi.cloud.restaurant;
+package io.hbi.cloud.food;
 
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 
 @SpringBootApplication
-public class RestaurantServiceApplication {
+public class FoodServiceApplication {
 
     public static void main(String[] args) {
-        SpringApplication.run(RestaurantServiceApplication.class, args);
+        SpringApplication.run(FoodServiceApplication.class, args);
     }
 }

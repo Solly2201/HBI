@@ -1,8 +1,10 @@
-# Deploying HBI Cloud
+# Deploying HBI Microservices
 
-HBI Cloud is designed to run on a single cloud VM with Docker Compose. That is the
-right size for this system: one broker, four small databases and five services. There
-is no Kubernetes, and none is needed.
+HBI Microservices is designed to run on a single VM with Docker Compose — the steps
+below target a cloud VM (e.g. AWS EC2), which is a documented deployment path, not a
+deployment that currently exists. That is the right size for this system: one broker,
+a few small databases and a handful of services. There is no Kubernetes, and none is
+needed.
 
 ---
 
@@ -59,7 +61,7 @@ JWT_TTL_MINUTES=720
 DATABASE_USERNAME=hbi
 DATABASE_PASSWORD=<a strong password>
 
-BLEND_SHORTLIST_SIZE=8
+BLEND_SHORTLIST_SIZE=12
 ```
 
 Every setting the services read comes from the environment:
@@ -74,7 +76,7 @@ Every setting the services read comes from the environment:
 | `KAFKA_BOOTSTRAP_SERVERS` | room-service, rating-service | Broker address |
 | `KAFKA_RATINGS_TOPIC` | rating-service | Default `hbi.ratings` |
 | `KAFKA_ROOM_EVENTS_TOPIC` | room-service, rating-service | Default `hbi.room-events` |
-| `BLEND_SHORTLIST_SIZE` | rating-service | Restaurants per blend |
+| `BLEND_SHORTLIST_SIZE` | rating-service | Food items per blend (players may stop after half) |
 | `CORS_ALLOWED_ORIGINS` | api-gateway | Only needed for `npm run dev` |
 | `*_SERVICE_URL` | gateway, rating-service | Internal addresses, set by Compose |
 
@@ -100,7 +102,7 @@ Verify:
 
 ```bash
 curl -s localhost:8080/actuator/health
-curl -s localhost:8080/api/restaurants/cuisines
+curl -s localhost:8080/api/foods/cuisines
 curl -s localhost:5173 | head -5
 ```
 
@@ -179,12 +181,12 @@ is convenient while developing. **On a public VM, stop publishing them.** Create
 services:
   user-db:            {ports: !reset []}
   room-db:            {ports: !reset []}
-  restaurant-db:      {ports: !reset []}
+  food-db:            {ports: !reset []}
   rating-db:          {ports: !reset []}
   kafka:              {ports: !reset []}
   user-service:       {ports: !reset []}
   room-service:       {ports: !reset []}
-  restaurant-service: {ports: !reset []}
+  food-service:       {ports: !reset []}
   rating-service:     {ports: !reset []}
   api-gateway:        {ports: !reset []}
   frontend:
@@ -246,7 +248,7 @@ docker compose exec -T user-db \
   pg_dump -U hbi user_db > user_db-$(date +%F).sql
 ```
 
-Repeat for `room_db`, `restaurant_db` and `rating_db`. `restaurant_db` re-seeds itself
+Repeat for `room_db`, `food_db` and `rating_db`. `food_db` re-seeds itself
 on an empty database, so it is the least critical.
 
 Restore:

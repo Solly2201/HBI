@@ -3,7 +3,7 @@
 #
 # Two different things get measured and they must not be confused:
 #   1. What the broker can do on its own (kafka-producer-perf-test).
-#   2. What HBI Cloud actually pushes through it end to end, which is what the
+#   2. What HBI Microservices actually pushes through it end to end, which is what the
 #      application is limited by.
 #
 #   bash benchmarks/kafka-bench.sh [burst_size]

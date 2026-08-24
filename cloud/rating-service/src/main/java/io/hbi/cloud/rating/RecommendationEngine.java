@@ -2,7 +2,7 @@ package io.hbi.cloud.rating;
 
 import io.hbi.cloud.rating.Entities.Preference;
 import io.hbi.cloud.rating.Entities.Rating;
-import io.hbi.cloud.rating.RestaurantClient.RestaurantView;
+import io.hbi.cloud.rating.FoodClient.FoodView;
 import org.springframework.stereotype.Component;
 
 import java.util.Comparator;
@@ -17,43 +17,40 @@ import java.util.stream.Collectors;
  * produce the same ranking, which makes the result explainable to the players
  * and easy to demonstrate.
  *
- * A restaurant's score blends five normalised (0..1) signals:
+ * A food item's score blends three normalised (0..1) signals:
  *
- *   groupRating  how well the people who rated it liked it        weight 0.50
- *   cuisineFit   share of players who asked for that cuisine      weight 0.20
- *   budgetFit    share of players whose budget covers it          weight 0.12
- *   distanceFit  share of players willing to travel that far      weight 0.10
- *   coverage     share of players who actually rated it           weight 0.08
+ *   groupRating  how well the people who rated it liked it        weight 0.60
+ *   cuisineFit   share of players who asked for that cuisine      weight 0.25
+ *   coverage     share of players who actually rated it           weight 0.15
  *
- * Ties break on restaurant id so the ordering is stable.
+ * Coverage matters more now that players may finish early: a dish only some of
+ * the room ever saw should not outrank one everybody scored highly.
+ *
+ * Ties break on food id so the ordering is stable.
  */
 @Component
 public class RecommendationEngine {
 
-    private static final double W_RATING = 0.50;
-    private static final double W_CUISINE = 0.20;
-    private static final double W_BUDGET = 0.12;
-    private static final double W_DISTANCE = 0.10;
-    private static final double W_COVERAGE = 0.08;
+    private static final double W_RATING = 0.60;
+    private static final double W_CUISINE = 0.25;
+    private static final double W_COVERAGE = 0.15;
 
     /** Highest score is at position 1. */
-    public record ScoredRestaurant(RestaurantView restaurant,
-                                   double score,
-                                   double groupRating,
-                                   int ratingCount,
-                                   double cuisineFit,
-                                   double budgetFit,
-                                   double distanceFit,
-                                   double coverage) {
+    public record ScoredFood(FoodView food,
+                             double score,
+                             double groupRating,
+                             int ratingCount,
+                             double cuisineFit,
+                             double coverage) {
     }
 
-    public List<ScoredRestaurant> score(List<RestaurantView> candidates,
-                                        List<Rating> ratings,
-                                        List<Preference> preferences,
-                                        int activeMemberCount) {
+    public List<ScoredFood> score(List<FoodView> candidates,
+                                  List<Rating> ratings,
+                                  List<Preference> preferences,
+                                  int activeMemberCount) {
 
-        Map<Long, List<Rating>> byRestaurant = ratings.stream()
-                .collect(Collectors.groupingBy(Rating::getRestaurantId));
+        Map<Long, List<Rating>> byFood = ratings.stream()
+                .collect(Collectors.groupingBy(Rating::getFoodId));
 
         int voters = Math.max(activeMemberCount, 1);
         int prefCount = Math.max(preferences.size(), 1);
@@ -66,37 +63,27 @@ public class RecommendationEngine {
                 .toList();
 
         return candidates.stream()
-                .map(r -> {
-                    List<Rating> rs = byRestaurant.getOrDefault(r.id(), List.of());
+                .map(f -> {
+                    List<Rating> rs = byFood.getOrDefault(f.id(), List.of());
 
                     double groupRating = rs.isEmpty() ? 0.0
                             : rs.stream().mapToInt(Rating::getScore).average().orElse(0.0) / 5.0;
                     double coverage = (double) rs.size() / voters;
 
-                    String cuisine = r.cuisine() == null ? "" : r.cuisine().toLowerCase(Locale.ROOT);
+                    String cuisine = f.cuisine() == null ? "" : f.cuisine().toLowerCase(Locale.ROOT);
                     // A player who named no cuisine is happy with anything.
                     double cuisineFit = (double) wantedCuisines.stream()
                             .filter(set -> set.isEmpty() || set.contains(cuisine)).count() / prefCount;
 
-                    double budgetFit = (double) preferences.stream()
-                            .filter(p -> p.getMaxBudget() == null || r.avgCostForTwo() == null
-                                    || r.avgCostForTwo() <= p.getMaxBudget()).count() / prefCount;
-
-                    double distanceFit = (double) preferences.stream()
-                            .filter(p -> p.getMaxDistanceKm() == null || r.distanceKm() == null
-                                    || r.distanceKm() <= p.getMaxDistanceKm()).count() / prefCount;
-
                     double score = W_RATING * groupRating
                             + W_CUISINE * cuisineFit
-                            + W_BUDGET * budgetFit
-                            + W_DISTANCE * distanceFit
                             + W_COVERAGE * clamp(coverage);
 
-                    return new ScoredRestaurant(r, round(score), round(groupRating), rs.size(),
-                            round(cuisineFit), round(budgetFit), round(distanceFit), round(clamp(coverage)));
+                    return new ScoredFood(f, round(score), round(groupRating), rs.size(),
+                            round(cuisineFit), round(clamp(coverage)));
                 })
-                .sorted(Comparator.comparingDouble(ScoredRestaurant::score).reversed()
-                        .thenComparing(s -> s.restaurant().id()))
+                .sorted(Comparator.comparingDouble(ScoredFood::score).reversed()
+                        .thenComparing(s -> s.food().id()))
                 .toList();
     }
 

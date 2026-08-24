@@ -39,10 +39,10 @@ public class DecisionEventListener {
             return;
         }
 
-        // A rating landing proves the room is being played: refresh its
-        // activity stamp so the TTL cleanup never reaps a room mid-blend,
-        // however long the rating phase drags on.
-        if ("RATING_SUBMITTED".equals(type)) {
+        // A rating landing (or a player blending early) proves the room is
+        // being played: refresh its activity stamp so the TTL cleanup never
+        // reaps a room mid-blend, however long the rating phase drags on.
+        if ("RATING_SUBMITTED".equals(type) || "PLAYER_FINISHED".equals(type)) {
             rooms.findByCode(code).ifPresent(room -> {
                 room.touch();
                 rooms.save(room);

@@ -1,5 +1,5 @@
 /*
- * HBI Cloud API benchmark.
+ * HBI Microservices API benchmark.
  *
  *   k6 run -e VUS=50 -e DUR=20s -e OUT=results-50.json benchmarks/k6-endpoints.js
  *
@@ -24,7 +24,7 @@ const step = SLOT + GRACE;
 
 const ENDPOINTS = [
   'session',
-  'restaurants',
+  'foods',
   'room_get',
   'room_create',
   'room_join',
@@ -86,13 +86,13 @@ export function session() {
   record('session', res, [200]);
 }
 
-export function restaurants() {
+export function foods() {
   // The realistic read: the catalogue filtered by a cuisine.
   const c = pick(fixture.cuisines, __VU + __ITER);
-  const res = http.get(`${GATEWAY}/api/restaurants?cuisine=${encodeURIComponent(c)}`, {
-    tags: { name: 'restaurants' },
+  const res = http.get(`${GATEWAY}/api/foods?cuisine=${encodeURIComponent(c)}`, {
+    tags: { name: 'foods' },
   });
-  record('restaurants', res, [200]);
+  record('foods', res, [200]);
 }
 
 export function room_get() {
@@ -125,10 +125,10 @@ export function room_join() {
 export function rating_post() {
   const r = pick(fixture.rooms, __VU + __ITER);
   const t = pick(r.memberTokens, __VU);
-  const rid = pick(r.restaurantIds, __ITER);
+  const rid = pick(r.foodIds, __ITER);
   const res = http.post(
     `${GATEWAY}/api/rooms/${r.code}/ratings`,
-    JSON.stringify({ restaurantId: rid, score: (__ITER % 5) + 1 }),
+    JSON.stringify({ foodId: rid, score: (__ITER % 5) + 1 }),
     { ...auth(t), tags: { name: 'rating_post' } }
   );
   record('rating_post', res, [200]);

@@ -1,4 +1,4 @@
-# HBI Cloud - the complete stack.
+# HBI Microservices - the complete stack.
 #
 #   cp .env.example .env
 #   docker compose up --build
@@ -51,12 +51,12 @@ services:
     healthcheck: *db-healthcheck
     networks: [hbi]
 
-  restaurant-db:
+  food-db:
     image: postgres:16-alpine
     environment:
       <<: *db-env
-      POSTGRES_DB: restaurant_db
-    volumes: [restaurant-db-data:/var/lib/postgresql/data]
+      POSTGRES_DB: food_db
+    volumes: [food-db-data:/var/lib/postgresql/data]
     ports: ["5435:5432"]
     healthcheck: *db-healthcheck
     networks: [hbi]
@@ -140,15 +140,15 @@ services:
       test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q UP"]
     networks: [hbi]
 
-  restaurant-service:
-    build: ./restaurant-service
+  food-service:
+    build: ./food-service
     environment:
       SERVER_PORT: 8083
-      DATABASE_URL: jdbc:postgresql://restaurant-db:5432/restaurant_db
+      DATABASE_URL: jdbc:postgresql://food-db:5432/food_db
       DATABASE_USERNAME: ${DATABASE_USERNAME:-hbi}
       DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hbi}
     depends_on:
-      restaurant-db: {condition: service_healthy}
+      food-db: {condition: service_healthy}
     ports: ["8083:8083"]
     healthcheck:
       <<: *service-health
@@ -168,13 +168,13 @@ services:
       KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-hbi-rating-service}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env}
       ROOM_SERVICE_URL: http://room-service:8082
-      RESTAURANT_SERVICE_URL: http://restaurant-service:8083
-      BLEND_SHORTLIST_SIZE: ${BLEND_SHORTLIST_SIZE:-8}
+      FOOD_SERVICE_URL: http://food-service:8083
+      BLEND_SHORTLIST_SIZE: ${BLEND_SHORTLIST_SIZE:-12}
     depends_on:
       rating-db: {condition: service_healthy}
       kafka: {condition: service_healthy}
       room-service: {condition: service_started}
-      restaurant-service: {condition: service_started}
+      food-service: {condition: service_started}
     ports: ["8084:8084"]
     healthcheck:
       <<: *service-health
@@ -188,13 +188,13 @@ services:
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env}
       USER_SERVICE_URL: http://user-service:8081
       ROOM_SERVICE_URL: http://room-service:8082
-      RESTAURANT_SERVICE_URL: http://restaurant-service:8083
+      FOOD_SERVICE_URL: http://food-service:8083
       RATING_SERVICE_URL: http://rating-service:8084
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:4173}
     depends_on:
       user-service: {condition: service_started}
       room-service: {condition: service_started}
-      restaurant-service: {condition: service_started}
+      food-service: {condition: service_started}
       rating-service: {condition: service_started}
     ports: ["8080:8080"]
     healthcheck:
@@ -214,7 +214,7 @@ services:
 volumes:
   user-db-data:
   room-db-data:
-  restaurant-db-data:
+  food-db-data:
   rating-db-data:
 
 networks:

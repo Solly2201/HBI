@@ -1,4 +1,10 @@
-# HBI Cloud — Current Project Status
+# HBI Microservices — Current Project Status
+
+> Terminology note: earlier entries in this log call the implementation "HBI
+> Cloud". That name has been retired — "Cloud" here refers only to a possible
+> future deployment environment (e.g. AWS), not to the architecture. The current
+> name is **HBI Microservices** (the distributed microservices implementation).
+> Historical entries below are preserved as written.
 
 Status after the hardening and re-testing pass of 2026-08-23/24. The baseline this
 report compares against is **[TESTING.md](TESTING.md)** (2026-08-23), which measured
@@ -411,7 +417,7 @@ A product-experience pass; the architecture above is unchanged.
 
 ## Account authentication removed (2026-08-24, later the same day)
 
-HBI Cloud is now anonymous-only. The documented model is simply: **anonymous
+The microservices implementation is now anonymous-only. The documented model is simply: **anonymous
 session-based players authenticated using short-lived JWT session tokens.**
 
 Removed:
@@ -469,3 +475,83 @@ services that own the data, no new infrastructure.
   DECIDED room deleted after TTL, active room kept regardless of age, recent
   empty lobby kept, legacy null-activity rows fall back to created_at, repeated
   sweeps are no-ops.
+
+---
+
+## Blend flow + food-first domain (2026-08-24, fourth pass)
+
+The product decides **what the group should eat**, not where. Restaurants are
+gone from the entire system, and nobody is forced to rate the whole shortlist.
+
+### Restaurants removed (architecture)
+
+- `restaurant-service` was **renamed/refactored into `food-service`** (same
+  port 8083, same slot in the architecture — still five backend services, no
+  service added or removed). It owns `food_db` with one table, `food_item`
+  (`id`, unique `name`, `cuisine`, `image_url`), seeded from the HBI master
+  food list (48 dishes, 8 cuisines — the same list HBI Web ships). PostgreSQL
+  remains the single editable source of truth; no JSON data stores.
+- The rating service's domain is food-keyed end to end: `rating.food_id`,
+  `room_candidate.food_id`, `recommendation.food_id`, `decision.food_id`.
+  `RestaurantClient` became `FoodClient`. Budget/distance preferences were
+  removed (they were restaurant attributes); a preference is now just cuisines.
+- The API renamed accordingly: `/api/restaurants/**` → `/api/foods/**`,
+  rating bodies take `{foodId, score}`, and the Kafka `RATING_SUBMITTED` /
+  `DECISION_FINALIZED` events carry `foodId`.
+- A pre-Hibernate `schema.sql` migration in rating-service deletes
+  restaurant-era rows and drops the old columns on old volumes (idempotent,
+  no-op on fresh databases); food names are unique, so the same dish can never
+  compete with itself.
+- The recommendation engine still ranks deterministically, now over three
+  signals: groupRating 0.60, cuisineFit 0.25, coverage 0.15 (ties on food id).
+  Coverage grew because players may now stop early.
+
+### Early blend (players) and host threshold
+
+- The shortlist default grew to `BLEND_SHORTLIST_SIZE=12`; a player may press
+  **BLEND NOW** after rating **half the shortlist, rounded up**
+  (`minRatingsRequired` in every progress payload). The server enforces this on
+  `POST /blend-now` (409 below it) and stores the early finish in
+  `player_done`, so refresh/resume and the other players' progress views agree.
+  Rating to the end via NEXT is unchanged, and full raters need no marker.
+- The **host** may force the blend (`POST /finalize`) only when **≥50% of the
+  currently active players** have rated the minimum — computed server-side
+  from the room service's active-member list, so departed players neither
+  block nor pad the threshold. Exactly 50% qualifies. Non-hosts get 403,
+  under-threshold hosts 409, repeats return the same decision (idempotent,
+  race-safe via the unique `decision.room_code` constraint).
+- The automatic decision still fires when every active player has finished
+  (fully rated or blended early), via the same Kafka path; `PLAYER_FINISHED`
+  events are consumed exactly like ratings.
+- Both rules live in `BlendPolicy` and are pinned by `BlendPolicyTest`.
+
+### Result screen
+
+The result is **TOP FOOD CHOICES**: the group's ranked foods, top 10 by
+default with VIEW MORE for the rest. No winner-restaurant card, no "you're
+eating at...", no restaurant anywhere in the payloads (asserted by tests).
+
+### Verified (all green on the running stack, 2026-08-24)
+
+| Suite | Result |
+|---|---:|
+| Unit tests (`RecommendationEngineTest` 5, `BlendPolicyTest` 7, `RoomCleanupTest` 6) | **18/18** |
+| Smoke suite (`scripts/smoke-test.mjs`, rewritten for foods) | **53/53** |
+| Functional suite (`benchmarks/functional.mjs`, + early-blend and host-threshold sections) | **92/92** |
+| Regression suite (`benchmarks/regression.mjs`) | **19/19** |
+| Kafka poison-message test (`kafka-poison-test.sh`) | **6/6** |
+| Two-browser UI journey (headless Chrome, incl. 375 px viewport) | **37/37** |
+
+The UI journey drives the real flow — home → create/join → live lobby →
+cuisines → one-food-at-a-time rating → BLEND NOW → waiting/progress → host
+force option → automatic decision → TOP FOOD CHOICES top-10 → VIEW MORE —
+and asserts refresh-resume mid-blend, identical rankings in both browsers, no
+restaurant wording anywhere, intact HBI branding (logo, mascot, palette), and
+no horizontal overflow at 375 px. The `schema.sql` migration was exercised for
+real: the pre-existing `rating_db` volume with restaurant-era columns migrated
+in place on first boot.
+
+Load benchmarks were **not** re-run: the changed paths (one extra progress
+computation per rating event, one fewer REST filter on the catalogue) are not
+performance-critical at human rating rates, and the k6 fixtures were simply
+regenerated for the food domain (`benchmarks/load-fixture.json`).

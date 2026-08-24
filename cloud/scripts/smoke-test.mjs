@@ -1,5 +1,5 @@
 /**
- * End-to-end check of the HBI Cloud flow, driven entirely through the gateway.
+ * End-to-end check of the HBI Microservices flow, driven entirely through the gateway.
  *
  *   node scripts/smoke-test.mjs
  *
@@ -124,25 +124,24 @@ async function main() {
   }
 
   // ------------------------------------------------------------ catalogue
-  step('Restaurant service');
-  const cuisines = await call('GET', '/api/restaurants/cuisines');
+  step('Food service');
+  const cuisines = await call('GET', '/api/foods/cuisines');
   check('cuisine list is served', Array.isArray(cuisines.data) && cuisines.data.length >= 5,
     JSON.stringify(cuisines.data));
 
-  const allResto = await call('GET', '/api/restaurants');
-  check('catalogue is seeded', Array.isArray(allResto.data) && allResto.data.length >= 20,
-    `got ${allResto.data?.length} restaurants`);
+  const allFoods = await call('GET', '/api/foods');
+  check('food catalogue is seeded', Array.isArray(allFoods.data) && allFoods.data.length >= 20,
+    `got ${allFoods.data?.length} foods`);
 
-  const chinese = await call('GET', '/api/restaurants?cuisine=Chinese');
+  const chinese = await call('GET', '/api/foods?cuisine=Chinese');
   check('?cuisine=Chinese filters',
-    chinese.data?.length > 0 && chinese.data.every((r) => r.cuisine === 'Chinese'));
+    chinese.data?.length > 0 && chinese.data.every((f) => f.cuisine === 'Chinese'));
 
-  const cheap = await call('GET', '/api/restaurants?budget=300');
-  check('?budget=300 filters',
-    cheap.data?.length > 0 && cheap.data.every((r) => r.avgCostForTwo <= 300));
+  check('food names are unique (one candidate per dish)',
+    new Set(allFoods.data.map((f) => f.name)).size === allFoods.data.length);
 
-  const one = await call('GET', `/api/restaurants/${allResto.data[0].id}`);
-  check('single restaurant lookup works', one.data?.id === allResto.data[0].id);
+  const one = await call('GET', `/api/foods/${allFoods.data[0].id}`);
+  check('single food lookup works', one.data?.id === allFoods.data[0].id);
 
   // ----------------------------------------------------------------- room
   step('Room creation and joining');
@@ -184,27 +183,21 @@ async function main() {
 
   const p1 = await call('POST', `/api/rooms/${roomCode}/preferences`, {
     token: aliceToken,
-    body: { cuisines: ['Indian', 'Chinese'], maxBudget: 700, maxDistanceKm: 6 },
+    body: { cuisines: ['Indian', 'Chinese'] },
   });
-  check('alice submits preferences', p1.status === 200, `got ${p1.status}`);
+  check('alice submits cuisines', p1.status === 200, `got ${p1.status}`);
 
   const p2 = await call('POST', `/api/rooms/${roomCode}/preferences`, {
     token: bobToken,
-    body: { cuisines: ['Italian'], maxBudget: 900, maxDistanceKm: 8 },
+    body: { cuisines: ['Italian'] },
   });
-  check('bob submits preferences', p2.status === 200, `got ${p2.status}`);
+  check('bob submits cuisines', p2.status === 200, `got ${p2.status}`);
 
   const agg = await call('GET', `/api/rooms/${roomCode}/preferences`, { token: aliceToken });
   check('group preferences merge everyone', agg.data?.submittedBy === 2, JSON.stringify(agg.data));
   check('merged cuisines are the union',
     ['Indian', 'Chinese', 'Italian'].every((c) => agg.data.cuisines.includes(c)),
     JSON.stringify(agg.data?.cuisines));
-
-  const nonsense = await call('POST', `/api/rooms/${roomCode}/preferences`, {
-    token: aliceToken,
-    body: { cuisines: ['Indian'], maxBudget: -5, maxDistanceKm: 6 },
-  });
-  check('invalid budget is rejected (400)', nonsense.status === 400, `got ${nonsense.status}`);
 
   // -------------------------------------------------------------- ratings
   step('Rating the shortlist');
@@ -213,29 +206,33 @@ async function main() {
   const shortlist = await call('GET', `/api/rooms/${roomCode}/candidates`, { token: aliceToken });
   check('shortlist is generated', shortlist.data?.length > 0, `got ${shortlist.data?.length}`);
   check('shortlist respects the group cuisines',
-    shortlist.data.every((r) => agg.data.cuisines.includes(r.cuisine)),
-    shortlist.data?.map((r) => r.cuisine).join(', '));
+    shortlist.data.every((f) => agg.data.cuisines.includes(f.cuisine)),
+    shortlist.data?.map((f) => f.cuisine).join(', '));
 
   const shortlistAgain = await call('GET', `/api/rooms/${roomCode}/candidates`, { token: bobToken });
   check('shortlist is frozen (same list for both players)',
-    JSON.stringify(shortlistAgain.data.map((r) => r.id)) ===
-      JSON.stringify(shortlist.data.map((r) => r.id)));
+    JSON.stringify(shortlistAgain.data.map((f) => f.id)) ===
+      JSON.stringify(shortlist.data.map((f) => f.id)));
 
-  const restaurants = shortlist.data;
-  // Give one restaurant a clear win so the outcome is predictable.
-  const favourite = restaurants[restaurants.length - 1];
+  const foods = shortlist.data;
+  // Give one food a clear win so the outcome is predictable.
+  const favourite = foods[foods.length - 1];
 
   const badScore = await call('POST', `/api/rooms/${roomCode}/ratings`, {
     token: aliceToken,
-    body: { restaurantId: favourite.id, score: 9 },
+    body: { foodId: favourite.id, score: 9 },
   });
   check('a score of 9 is rejected (400)', badScore.status === 400, `got ${badScore.status}`);
 
-  for (const r of restaurants) {
+  const tooEarly = await call('POST', `/api/rooms/${roomCode}/blend-now`, { token: aliceToken });
+  check('BLEND NOW before the minimum rating count is refused (409)', tooEarly.status === 409,
+    `got ${tooEarly.status}`);
+
+  for (const f of foods) {
     // eslint-disable-next-line no-await-in-loop
     await call('POST', `/api/rooms/${roomCode}/ratings`, {
       token: aliceToken,
-      body: { restaurantId: r.id, score: r.id === favourite.id ? 5 : 2 },
+      body: { foodId: f.id, score: f.id === favourite.id ? 5 : 2 },
     });
   }
   check('alice rated the whole shortlist', true);
@@ -254,10 +251,10 @@ async function main() {
     JSON.stringify(midProgress.data?.progress));
 
   const recs = await call('GET', `/api/rooms/${roomCode}/recommendations`, { token: aliceToken });
-  check('recommendations are ranked', recs.data?.recommendations?.length === restaurants.length);
+  check('recommendations are ranked', recs.data?.recommendations?.length === foods.length);
   check('the favourite leads the ranking',
-    recs.data.recommendations[0].restaurant.id === favourite.id,
-    `leader was ${recs.data.recommendations[0].restaurant.name}`);
+    recs.data.recommendations[0].food.id === favourite.id,
+    `leader was ${recs.data.recommendations[0].food.name}`);
 
   const notYet = await call('GET', `/api/rooms/${roomCode}/decision`, { token: aliceToken });
   check('no decision before everyone finishes (404)', notYet.status === 404, `got ${notYet.status}`);
@@ -268,11 +265,11 @@ async function main() {
 
   // ------------------------------------------------------------- decision
   step('Bob finishes -> automatic decision -> WebSocket');
-  for (const r of restaurants) {
+  for (const f of foods) {
     // eslint-disable-next-line no-await-in-loop
     await call('POST', `/api/rooms/${roomCode}/ratings`, {
       token: bobToken,
-      body: { restaurantId: r.id, score: r.id === favourite.id ? 5 : 3 },
+      body: { foodId: f.id, score: f.id === favourite.id ? 5 : 3 },
     });
   }
 
@@ -287,15 +284,16 @@ async function main() {
     decisionEvent?.payload?.trigger);
 
   const decision = await call('GET', `/api/rooms/${roomCode}/decision`, { token: aliceToken });
-  check('GET decision returns the final restaurant', decision.status === 200, `got ${decision.status}`);
-  check('the group picked the favourite',
-    decision.data?.restaurantId === favourite.id,
-    `picked ${decision.data?.restaurant?.name}, expected ${favourite.name}`);
-  check('decision carries restaurant details', !!decision.data?.restaurant?.name);
+  check('GET decision returns the top food', decision.status === 200, `got ${decision.status}`);
+  check('the group picked the favourite food',
+    decision.data?.foodId === favourite.id,
+    `picked ${decision.data?.food?.name}, expected ${favourite.name}`);
+  check('decision carries food details, no restaurant anywhere',
+    !!decision.data?.food?.name && !('restaurant' in (decision.data || {})));
 
   const again = await call('GET', `/api/rooms/${roomCode}/decision`, { token: bobToken });
   check('the decision is stable when read again',
-    again.data?.restaurantId === decision.data?.restaurantId);
+    again.data?.foodId === decision.data?.foodId);
 
   // --------------------------------------------------------------- leave
   step('Leaving a room');
@@ -315,7 +313,7 @@ async function main() {
     const page = await fetch(FRONTEND_ORIGIN);
     const html = await page.text();
     check('frontend serves the app shell', page.status === 200 && html.includes('<div id="root">'));
-    const proxied = await fetch(`${FRONTEND_ORIGIN}/api/restaurants/cuisines`);
+    const proxied = await fetch(`${FRONTEND_ORIGIN}/api/foods/cuisines`);
     check('frontend proxies /api to the gateway', proxied.status === 200);
     const logo = await fetch(`${FRONTEND_ORIGIN}/images/logo.png`);
     check('original HBI logo is served', logo.status === 200);
@@ -332,7 +330,7 @@ async function main() {
     failures.forEach((f) => console.log(`  - ${f}`));
     process.exit(1);
   }
-  console.log('HBI Cloud end-to-end flow verified.');
+  console.log('HBI Microservices end-to-end flow verified.');
 }
 
 // --------------------------------------------------------------------------

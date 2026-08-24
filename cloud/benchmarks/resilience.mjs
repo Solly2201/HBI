@@ -29,7 +29,7 @@ const report = [];
 /** The probe set: one representative call per service, plus the frontend. */
 async function probe(ctx) {
   const out = {};
-  out['GET /api/restaurants'] = (await call('GET', '/api/restaurants')).status;
+  out['GET /api/foods'] = (await call('GET', '/api/foods')).status;
   out['POST /api/users/session'] = (await call('POST', '/api/users/session',
     { body: { displayName: 'probe' } })).status;
   out['POST /api/rooms'] = (await call('POST', '/api/rooms', { token: ctx.user.token })).status;
@@ -37,7 +37,7 @@ async function probe(ctx) {
   out['GET /api/rooms/{code}/candidates'] = (await call('GET', `/api/rooms/${ctx.room}/candidates`,
     { token: ctx.user.token })).status;
   out['POST /api/rooms/{code}/ratings'] = (await call('POST', `/api/rooms/${ctx.room}/ratings`,
-    { token: ctx.user.token, body: { restaurantId: ctx.restaurantId, score: 4 } })).status;
+    { token: ctx.user.token, body: { foodId: ctx.foodId, score: 4 } })).status;
   out['GET /api/rooms/{code}/recommendations'] = (await call('GET', `/api/rooms/${ctx.room}/recommendations`,
     { token: ctx.user.token })).status;
   try {
@@ -88,11 +88,11 @@ async function freshContext(tag) {
   const room = (await call('POST', '/api/rooms', { token: user.token })).data.code;
   await call('PUT', `/api/rooms/${room}/status`, { token: user.token, body: { status: 'PREFERENCES' } });
   await call('POST', `/api/rooms/${room}/preferences`, {
-    token: user.token, body: { cuisines: ['Indian', 'Chinese', 'Italian'], maxBudget: 900, maxDistanceKm: 9 },
+    token: user.token, body: { cuisines: ['Indian', 'Chinese', 'Italian'] },
   });
   await call('PUT', `/api/rooms/${room}/status`, { token: user.token, body: { status: 'RATING' } });
   const shortlist = (await call('GET', `/api/rooms/${room}/candidates`, { token: user.token })).data;
-  return { user, room, restaurantId: shortlist?.[0]?.id ?? 1, shortlist };
+  return { user, room, foodId: shortlist?.[0]?.id ?? 1, shortlist };
 }
 
 async function scenario(name, service, extra) {
@@ -139,11 +139,11 @@ async function scenario(name, service, extra) {
 
 // =========================================================================
 
-console.log('HBI Cloud resilience testing');
+console.log('HBI Microservices resilience testing');
 console.log('Docker restart policy in use:', sh('docker inspect -f "{{.HostConfig.RestartPolicy.Name}}" $(docker compose ps -q rating-service)') || 'none');
 
-// ---- 1. restaurant-service
-await scenario('resto', 'restaurant-service', async (ctx) => {
+// ---- 1. food-service
+await scenario('resto', 'food-service', async (ctx) => {
   const notes = [];
   const cands = await call('GET', `/api/rooms/${ctx.room}/candidates`, { token: ctx.user.token });
   notes.push(`candidates during outage: HTTP ${cands.status}, ${Array.isArray(cands.data) ? cands.data.length : '?'} items`);
@@ -201,7 +201,7 @@ console.log('='.repeat(70));
     const rid = ctx.shortlist[i % ctx.shortlist.length].id;
     // eslint-disable-next-line no-await-in-loop
     const res = await call('POST', `/api/rooms/${ctx.room}/ratings`, {
-      token: ctx.user.token, body: { restaurantId: rid, score: 5 },
+      token: ctx.user.token, body: { foodId: rid, score: 5 },
     });
     submitted.push(res.status);
   }
@@ -220,7 +220,7 @@ console.log('='.repeat(70));
 
   wsEvents.length = 0;
   const afterRating = await call('POST', `/api/rooms/${ctx.room}/ratings`, {
-    token: ctx.user.token, body: { restaurantId: ctx.shortlist[0].id, score: 3 },
+    token: ctx.user.token, body: { foodId: ctx.shortlist[0].id, score: 3 },
   });
   let recovered = false;
   for (let i = 0; i < 40; i += 1) {

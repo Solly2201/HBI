@@ -46,6 +46,3 @@ export function PlayerList({ members, hostId }) {
   );
 }
 
-/** Rupee/kilometre formatting used across the rating and result screens. */
-export const money = (n) => (n == null ? '--' : `Rs ${n}`);
-export const km = (n) => (n == null ? '--' : `${n} km`);

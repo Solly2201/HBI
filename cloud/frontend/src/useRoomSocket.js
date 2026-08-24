@@ -5,7 +5,7 @@ import { getToken } from './api';
 /**
  * Subscribes to /topic/rooms/{roomCode} for the life of the component.
  *
- * This is HBI Cloud's replacement for HBI Web's Socket.IO channel. The server
+ * This is HBI Microservices' replacement for HBI Web's Socket.IO channel. The server
  * side is Spring's STOMP broker, fed by Kafka, and reached through the gateway
  * at /ws — the same single entry point every REST call uses.
  *

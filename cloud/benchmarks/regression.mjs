@@ -27,7 +27,7 @@ async function roomAtRating(tag) {
   const room = (await call('POST', '/api/rooms', { token: alice.token })).data.code;
   await call('POST', `/api/rooms/${room}/join`, { token: bob.token });
   await call('PUT', `/api/rooms/${room}/status`, { token: alice.token, body: { status: 'PREFERENCES' } });
-  const prefs = { cuisines: [], maxBudget: 2000, maxDistanceKm: 20 };
+  const prefs = { cuisines: [] };
   await call('POST', `/api/rooms/${room}/preferences`, { token: alice.token, body: prefs });
   await call('POST', `/api/rooms/${room}/preferences`, { token: bob.token, body: prefs });
   await call('PUT', `/api/rooms/${room}/status`, { token: alice.token, body: { status: 'RATING' } });
@@ -45,36 +45,36 @@ h.section('BUG-1 - ratings validated against the frozen shortlist');
     `got ${candidates?.length}`);
 
   const valid = await call('POST', `/api/rooms/${room}/ratings`, {
-    token: alice.token, body: { restaurantId: candidates[0].id, score: 5 },
+    token: alice.token, body: { foodId: candidates[0].id, score: 5 },
   });
   h.check('valid candidate rating accepted (200)', valid.status === 200, `got ${valid.status}`);
 
   const ghost = await call('POST', `/api/rooms/${room}/ratings`, {
-    token: alice.token, body: { restaurantId: 999999, score: 3 },
+    token: alice.token, body: { foodId: 999999, score: 3 },
   });
-  h.check('non-existent restaurant rejected (422)', ghost.status === 422, `got ${ghost.status}`);
+  h.check('non-existent food rejected (422)', ghost.status === 422, `got ${ghost.status}`);
 
-  const real = await call('GET', '/api/restaurants', { token: alice.token });
+  const real = await call('GET', '/api/foods', { token: alice.token });
   const offList = real.data.map((r) => r.id).find((id) => !candidates.some((c) => c.id === id));
   if (offList) {
     const off = await call('POST', `/api/rooms/${room}/ratings`, {
-      token: alice.token, body: { restaurantId: offList, score: 3 },
+      token: alice.token, body: { foodId: offList, score: 3 },
     });
-    h.check('real restaurant NOT on the shortlist rejected (422)', off.status === 422,
+    h.check('real food NOT on the shortlist rejected (422)', off.status === 422,
       `got ${off.status}`);
   }
 
   // Alice finishes the shortlist properly.
   for (const c of candidates) {
     await call('POST', `/api/rooms/${room}/ratings`, {
-      token: alice.token, body: { restaurantId: c.id, score: 4 },
+      token: alice.token, body: { foodId: c.id, score: 4 },
     });
   }
 
   // Bob only ever *attempts* bogus ids - every one rejected.
   for (let i = 0; i < candidates.length; i += 1) {
     await call('POST', `/api/rooms/${room}/ratings`, {
-      token: bob.token, body: { restaurantId: 900000 + i, score: 5 },
+      token: bob.token, body: { foodId: 900000 + i, score: 5 },
     });
   }
 
@@ -106,8 +106,8 @@ h.section('BUG-2 - a finished room refuses new joins');
   await call('DELETE', `/api/rooms/${room}/members/${carol.id}`, { token: alice.token });
 
   for (const c of candidates) {
-    await call('POST', `/api/rooms/${room}/ratings`, { token: alice.token, body: { restaurantId: c.id, score: 4 } });
-    await call('POST', `/api/rooms/${room}/ratings`, { token: bob.token, body: { restaurantId: c.id, score: 3 } });
+    await call('POST', `/api/rooms/${room}/ratings`, { token: alice.token, body: { foodId: c.id, score: 4 } });
+    await call('POST', `/api/rooms/${room}/ratings`, { token: bob.token, body: { foodId: c.id, score: 3 } });
   }
 
   const decided = await waitFor(async () => (await call('GET', `/api/rooms/${room}/decision`,
@@ -133,24 +133,24 @@ h.section('BUG-4 - concurrent duplicate ratings');
 
   const burst = await Promise.all(Array.from({ length: 10 }, () => call(
     'POST', `/api/rooms/${room}/ratings`,
-    { token: alice.token, body: { restaurantId: target, score: 4 }, attempts: 1 },
+    { token: alice.token, body: { foodId: target, score: 4 }, attempts: 1 },
   )));
   const statuses = burst.map((r) => r.status);
   h.check('10 concurrent identical ratings all succeed (200)',
     statuses.every((s) => s === 200), `got ${JSON.stringify(statuses)}`);
 
   const after = await call('GET', `/api/rooms/${room}/ratings`, { token: alice.token });
-  const rows = after.data?.ratings?.filter((r) => r.userId === alice.id && r.restaurantId === target);
-  h.check('exactly one stored row for the (user, restaurant)', rows?.length === 1,
+  const rows = after.data?.ratings?.filter((r) => r.userId === alice.id && r.foodId === target);
+  h.check('exactly one stored row for the (user, food)', rows?.length === 1,
     `got ${rows?.length}`);
   h.check('stored score is correct', rows?.[0]?.score === 4, `got ${rows?.[0]?.score}`);
 
   const overwrite = await call('POST', `/api/rooms/${room}/ratings`, {
-    token: alice.token, body: { restaurantId: target, score: 2 },
+    token: alice.token, body: { foodId: target, score: 2 },
   });
   h.check('sequential duplicate still overwrites', overwrite.status === 200
     && (await call('GET', `/api/rooms/${room}/ratings`, { token: alice.token }))
-      .data.ratings.find((r) => r.userId === alice.id && r.restaurantId === target)?.score === 2);
+      .data.ratings.find((r) => r.userId === alice.id && r.foodId === target)?.score === 2);
 }
 
 // ============================ Kafka: valid events flow end-to-end over WS
@@ -164,7 +164,7 @@ h.section('Kafka + WebSocket - valid events still flow after the hardening');
   h.check('subscriber connected', sock.connected);
 
   await call('POST', `/api/rooms/${room}/ratings`, {
-    token: alice.token, body: { restaurantId: candidates[0].id, score: 5 },
+    token: alice.token, body: { foodId: candidates[0].id, score: 5 },
   });
   h.check('RATING_SUBMITTED reaches the other user via Kafka->STOMP',
     await waitFor(() => events.some((e) => e.type === 'RATING_SUBMITTED'), { attempts: 80 }));
@@ -172,8 +172,8 @@ h.section('Kafka + WebSocket - valid events still flow after the hardening');
     await waitFor(() => events.some((e) => e.type === 'RECOMMENDATIONS_GENERATED'), { attempts: 80 }));
 
   for (const c of candidates) {
-    await call('POST', `/api/rooms/${room}/ratings`, { token: alice.token, body: { restaurantId: c.id, score: 4 } });
-    await call('POST', `/api/rooms/${room}/ratings`, { token: bob.token, body: { restaurantId: c.id, score: 3 } });
+    await call('POST', `/api/rooms/${room}/ratings`, { token: alice.token, body: { foodId: c.id, score: 4 } });
+    await call('POST', `/api/rooms/${room}/ratings`, { token: bob.token, body: { foodId: c.id, score: 3 } });
   }
   h.check('DECISION_FINALIZED reaches the subscriber',
     await waitFor(() => events.some((e) => e.type === 'DECISION_FINALIZED'), { attempts: 80 }));

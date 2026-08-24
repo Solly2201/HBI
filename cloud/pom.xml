@@ -8,8 +8,8 @@
     <artifactId>hbi-cloud</artifactId>
     <version>1.0.0</version>
     <packaging>pom</packaging>
-    <name>HBI Cloud</name>
-    <description>Aggregator for the HBI Cloud microservices implementation</description>
+    <name>HBI Microservices</name>
+    <description>Aggregator for the HBI distributed microservices implementation</description>
 
     <!--
       Convenience aggregator so the whole backend can be built with a single
@@ -21,7 +21,7 @@
         <module>api-gateway</module>
         <module>user-service</module>
         <module>room-service</module>
-        <module>restaurant-service</module>
+        <module>food-service</module>
         <module>rating-service</module>
     </modules>
 </project>

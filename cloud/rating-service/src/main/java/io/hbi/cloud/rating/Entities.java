@@ -13,7 +13,7 @@ import java.util.Arrays;
 import java.util.List;
 
 /**
- * The four tables in rating_db. They are grouped in one file because they are
+ * The tables in rating_db. They are grouped in one file because they are
  * small and always read together.
  */
 public final class Entities {
@@ -40,12 +40,6 @@ public final class Entities {
         /** Comma-separated cuisine names, e.g. "Indian,Chinese". */
         @Column(name = "cuisines", nullable = false, length = 400)
         private String cuisines = "";
-
-        @Column(name = "max_budget", nullable = false)
-        private Integer maxBudget;
-
-        @Column(name = "max_distance_km", nullable = false)
-        private Double maxDistanceKm;
 
         @Column(name = "updated_at", nullable = false)
         private Instant updatedAt = Instant.now();
@@ -77,31 +71,15 @@ public final class Entities {
             this.cuisines = values == null ? "" : String.join(",", values);
         }
 
-        public Integer getMaxBudget() {
-            return maxBudget;
-        }
-
-        public void setMaxBudget(Integer maxBudget) {
-            this.maxBudget = maxBudget;
-        }
-
-        public Double getMaxDistanceKm() {
-            return maxDistanceKm;
-        }
-
-        public void setMaxDistanceKm(Double maxDistanceKm) {
-            this.maxDistanceKm = maxDistanceKm;
-        }
-
         public void touch() {
             this.updatedAt = Instant.now();
         }
     }
 
-    /** One player's score for one restaurant. Re-submitting overwrites. */
+    /** One player's score for one food item. Re-submitting overwrites. */
     @Entity
     @Table(name = "rating",
-            uniqueConstraints = @UniqueConstraint(columnNames = {"room_code", "user_id", "restaurant_id"}))
+            uniqueConstraints = @UniqueConstraint(columnNames = {"room_code", "user_id", "food_id"}))
     public static class Rating {
 
         @Id
@@ -114,8 +92,8 @@ public final class Entities {
         @Column(name = "user_id", nullable = false)
         private Long userId;
 
-        @Column(name = "restaurant_id", nullable = false)
-        private Long restaurantId;
+        @Column(name = "food_id", nullable = false)
+        private Long foodId;
 
         /** 1..5, matching the HBI "eat-o-meter". */
         @Column(nullable = false)
@@ -127,10 +105,10 @@ public final class Entities {
         protected Rating() {
         }
 
-        public Rating(String roomCode, Long userId, Long restaurantId, Integer score) {
+        public Rating(String roomCode, Long userId, Long foodId, Integer score) {
             this.roomCode = roomCode;
             this.userId = userId;
-            this.restaurantId = restaurantId;
+            this.foodId = foodId;
             this.score = score;
         }
 
@@ -138,8 +116,8 @@ public final class Entities {
             return userId;
         }
 
-        public Long getRestaurantId() {
-            return restaurantId;
+        public Long getFoodId() {
+            return foodId;
         }
 
         public Integer getScore() {
@@ -153,15 +131,15 @@ public final class Entities {
     }
 
     /**
-     * The restaurants a room is rating.
+     * The food items a room is rating.
      *
-     * The shortlist is worked out once from the group's preferences and then
+     * The shortlist is worked out once from the group's cuisines and then
      * frozen, so a player joining halfway through cannot change what everyone
      * else is already rating.
      */
     @Entity
     @Table(name = "room_candidate",
-            uniqueConstraints = @UniqueConstraint(columnNames = {"room_code", "restaurant_id"}))
+            uniqueConstraints = @UniqueConstraint(columnNames = {"room_code", "food_id"}))
     public static class Candidate {
 
         @Id
@@ -171,8 +149,8 @@ public final class Entities {
         @Column(name = "room_code", nullable = false, length = 12)
         private String roomCode;
 
-        @Column(name = "restaurant_id", nullable = false)
-        private Long restaurantId;
+        @Column(name = "food_id", nullable = false)
+        private Long foodId;
 
         @Column(name = "position_no", nullable = false)
         private Integer position;
@@ -180,14 +158,14 @@ public final class Entities {
         protected Candidate() {
         }
 
-        public Candidate(String roomCode, Long restaurantId, Integer position) {
+        public Candidate(String roomCode, Long foodId, Integer position) {
             this.roomCode = roomCode;
-            this.restaurantId = restaurantId;
+            this.foodId = foodId;
             this.position = position;
         }
 
-        public Long getRestaurantId() {
-            return restaurantId;
+        public Long getFoodId() {
+            return foodId;
         }
 
         public Integer getPosition() {
@@ -207,8 +185,8 @@ public final class Entities {
         @Column(name = "room_code", nullable = false, length = 12)
         private String roomCode;
 
-        @Column(name = "restaurant_id", nullable = false)
-        private Long restaurantId;
+        @Column(name = "food_id", nullable = false)
+        private Long foodId;
 
         @Column(name = "position_no", nullable = false)
         private Integer position;
@@ -222,15 +200,15 @@ public final class Entities {
         protected Recommendation() {
         }
 
-        public Recommendation(String roomCode, Long restaurantId, Integer position, Double score) {
+        public Recommendation(String roomCode, Long foodId, Integer position, Double score) {
             this.roomCode = roomCode;
-            this.restaurantId = restaurantId;
+            this.foodId = foodId;
             this.position = position;
             this.score = score;
         }
 
-        public Long getRestaurantId() {
-            return restaurantId;
+        public Long getFoodId() {
+            return foodId;
         }
 
         public Integer getPosition() {
@@ -246,7 +224,49 @@ public final class Entities {
         }
     }
 
-    /** The room's locked-in answer. One row per room. */
+    /**
+     * A player's explicit "BLEND NOW": they have rated enough and are happy for
+     * the group decision to use their current ratings. One row per (room, user).
+     *
+     * Rating every candidate still counts as finished without one of these; the
+     * row only exists for players who stopped early.
+     */
+    @Entity
+    @Table(name = "player_done",
+            uniqueConstraints = @UniqueConstraint(columnNames = {"room_code", "user_id"}))
+    public static class PlayerDone {
+
+        @Id
+        @GeneratedValue(strategy = GenerationType.IDENTITY)
+        private Long id;
+
+        @Column(name = "room_code", nullable = false, length = 12)
+        private String roomCode;
+
+        @Column(name = "user_id", nullable = false)
+        private Long userId;
+
+        @Column(name = "done_at", nullable = false)
+        private Instant doneAt = Instant.now();
+
+        protected PlayerDone() {
+        }
+
+        public PlayerDone(String roomCode, Long userId) {
+            this.roomCode = roomCode;
+            this.userId = userId;
+        }
+
+        public Long getUserId() {
+            return userId;
+        }
+    }
+
+    /**
+     * The room's locked-in answer: the top-ranked food item at the moment the
+     * blend finished. One row per room; the full ranking lives in
+     * {@link Recommendation}.
+     */
     @Entity
     @Table(name = "decision", uniqueConstraints = @UniqueConstraint(columnNames = {"room_code"}))
     public static class Decision {
@@ -258,8 +278,8 @@ public final class Entities {
         @Column(name = "room_code", nullable = false, length = 12)
         private String roomCode;
 
-        @Column(name = "restaurant_id", nullable = false)
-        private Long restaurantId;
+        @Column(name = "food_id", nullable = false)
+        private Long foodId;
 
         @Column(name = "final_score", nullable = false)
         private Double finalScore;
@@ -274,9 +294,9 @@ public final class Entities {
         protected Decision() {
         }
 
-        public Decision(String roomCode, Long restaurantId, Double finalScore, String decidedBy) {
+        public Decision(String roomCode, Long foodId, Double finalScore, String decidedBy) {
             this.roomCode = roomCode;
-            this.restaurantId = restaurantId;
+            this.foodId = foodId;
             this.finalScore = finalScore;
             this.decidedBy = decidedBy;
         }
@@ -285,8 +305,8 @@ public final class Entities {
             return roomCode;
         }
 
-        public Long getRestaurantId() {
-            return restaurantId;
+        public Long getFoodId() {
+            return foodId;
         }
 
         public Double getFinalScore() {

@@ -63,7 +63,7 @@ management:
 
 info:
   app:
-    name: HBI Cloud - Room Service
+    name: HBI Microservices - Room Service
     responsibility: Room creation/joining, membership, room state
 
 logging:

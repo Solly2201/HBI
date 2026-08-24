@@ -41,9 +41,7 @@ public class BlendController {
 
     // ---------------------------------------------------------- preferences
 
-    public record PreferenceRequest(List<String> cuisines,
-                                    @NotNull @Min(50) @Max(10000) Integer maxBudget,
-                                    @NotNull @Min(1) @Max(50) Double maxDistanceKm) {
+    public record PreferenceRequest(List<String> cuisines) {
     }
 
     @PostMapping("/preferences")
@@ -52,14 +50,12 @@ public class BlendController {
                                                  @Valid @RequestBody PreferenceRequest req) {
         String room = normalise(roomId);
         Preference saved = blend.savePreference(room, userId,
-                req.cuisines() == null ? List.of() : req.cuisines(), req.maxBudget(), req.maxDistanceKm());
+                req.cuisines() == null ? List.of() : req.cuisines());
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("roomId", room);
         out.put("userId", saved.getUserId());
         out.put("cuisines", saved.cuisineList());
-        out.put("maxBudget", saved.getMaxBudget());
-        out.put("maxDistanceKm", saved.getMaxDistanceKm());
         out.put("group", blend.aggregatePreferences(room));
         return out;
     }
@@ -72,22 +68,20 @@ public class BlendController {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("userId", p.getUserId());
             m.put("cuisines", p.cuisineList());
-            m.put("maxBudget", p.getMaxBudget());
-            m.put("maxDistanceKm", p.getMaxDistanceKm());
             return m;
         }).toList());
         return out;
     }
 
-    /** The frozen shortlist this room is rating. */
+    /** The frozen shortlist of food items this room is rating. */
     @GetMapping("/candidates")
-    public List<RestaurantClient.RestaurantView> candidates(@PathVariable String roomId) {
+    public List<FoodClient.FoodView> candidates(@PathVariable String roomId) {
         return blend.candidatesFor(normalise(roomId));
     }
 
     // -------------------------------------------------------------- ratings
 
-    public record RatingRequest(@NotNull Long restaurantId,
+    public record RatingRequest(@NotNull Long foodId,
                                 @NotNull @Min(1) @Max(5) Integer score) {
     }
 
@@ -98,21 +92,21 @@ public class BlendController {
         String room = normalise(roomId);
         Rating saved;
         try {
-            saved = blend.saveRating(room, userId, req.restaurantId(), req.score());
+            saved = blend.saveRating(room, userId, req.foodId(), req.score());
         } catch (DataIntegrityViolationException e) {
             // Two identical submissions raced: both found no existing row and
             // both inserted, and this one lost. The row exists now, so a
             // single retry finds it and applies the score as an update.
-            saved = blend.saveRating(room, userId, req.restaurantId(), req.score());
+            saved = blend.saveRating(room, userId, req.foodId(), req.score());
         }
 
         // Persist first, then announce. The decision engine reacts to the event.
-        events.ratingSubmitted(room, userId, req.restaurantId(), req.score());
+        events.ratingSubmitted(room, userId, req.foodId(), req.score());
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("roomId", room);
         out.put("userId", saved.getUserId());
-        out.put("restaurantId", saved.getRestaurantId());
+        out.put("foodId", saved.getFoodId());
         out.put("score", saved.getScore());
         out.put("accepted", true);
         out.put("progress", blend.progress(room));
@@ -128,10 +122,35 @@ public class BlendController {
         out.put("ratings", blend.ratingsFor(room).stream().map(r -> {
             Map<String, Object> m = new LinkedHashMap<>();
             m.put("userId", r.getUserId());
-            m.put("restaurantId", r.getRestaurantId());
+            m.put("foodId", r.getFoodId());
             m.put("score", r.getScore());
             return m;
         }).toList());
+        return out;
+    }
+
+    // ------------------------------------------------------------ blend now
+
+    /**
+     * The player's optional early finish: "I have rated enough, use my current
+     * ratings." Validated server-side against the minimum rating count.
+     */
+    @PostMapping("/blend-now")
+    public Map<String, Object> blendNow(@PathVariable String roomId,
+                                        @RequestHeader("X-User-Id") Long userId) {
+        String room = normalise(roomId);
+        Map<String, Object> progress = blend.markPlayerDone(room, userId);
+
+        // Announce over Kafka so the decision engine re-scores and, if this
+        // player was the last one outstanding, finalises - the same async path
+        // a rating takes.
+        events.playerFinished(room, userId);
+
+        Map<String, Object> out = new LinkedHashMap<>();
+        out.put("roomId", room);
+        out.put("userId", userId);
+        out.put("done", true);
+        out.put("progress", progress);
         return out;
     }
 
@@ -151,6 +170,11 @@ public class BlendController {
 
     // ------------------------------------------------------------- decision
 
+    /**
+     * The host starts (or forces) the group decision early. Two server-side
+     * checks, in order: the caller must be the host, and at least half of the
+     * active players must have rated the minimum ({@link BlendService#hostFinalise}).
+     */
     @PostMapping("/finalize")
     public Map<String, Object> finalizeBlend(@PathVariable String roomId,
                                              @RequestHeader("X-User-Id") Long userId) {
@@ -164,9 +188,7 @@ public class BlendController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the host can finish the blend.");
         }
 
-        Map<String, Object> decision = blend.finalise(room, "HOST")
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.CONFLICT,
-                        "Nothing to decide yet - submit some ratings first."));
+        Map<String, Object> decision = blend.hostFinalise(room);
 
         Map<String, Object> payload = new LinkedHashMap<>(decision);
         payload.put("trigger", "HOST_FINALIZED");

@@ -1,16 +1,14 @@
 import React, { useEffect, useState } from 'react';
 import { errorMessage, getCuisines, getPreferences, submitPreferences } from '../api';
-import { Alert, Loader, money, km } from '../components';
+import { Alert, Loader } from '../components';
 
 /**
- * Cuisine picking, kept in HBI's language ("SELECT CUISINES"), plus the two
- * filters the Restaurant Service can actually act on: budget and distance.
+ * Cuisine picking, kept in HBI's language ("SELECT CUISINES"). The group's
+ * chosen cuisines decide which food items appear on the rating shortlist.
  */
 export default function Preferences({ roomCode, members, isHost, onStartRating }) {
   const [cuisines, setCuisines] = useState([]);
   const [picked, setPicked] = useState([]);
-  const [budget, setBudget] = useState(600);
-  const [distance, setDistance] = useState(5);
   const [group, setGroup] = useState(null);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState('');
@@ -44,15 +42,11 @@ export default function Preferences({ roomCode, members, isHost, onStartRating }
     setError('');
     setBusy(true);
     try {
-      const result = await submitPreferences(roomCode, {
-        cuisines: picked,
-        maxBudget: Number(budget),
-        maxDistanceKm: Number(distance),
-      });
+      const result = await submitPreferences(roomCode, { cuisines: picked });
       setGroup(result.group);
       setSubmitted(true);
     } catch (err) {
-      setError(errorMessage(err, 'Could not save your preferences.'));
+      setError(errorMessage(err, 'Could not save your choices.'));
     } finally {
       setBusy(false);
     }
@@ -88,44 +82,6 @@ export default function Preferences({ roomCode, members, isHost, onStartRating }
               {c}
             </button>
           ))}
-        </div>
-      </div>
-
-      <div className="card stack">
-        <h3 style={{ margin: 0 }}>Your limits</h3>
-
-        <div className="field">
-          <label htmlFor="budget">Budget for two</label>
-          <div className="slider-row">
-            <input
-              id="budget"
-              type="range"
-              min="100"
-              max="1500"
-              step="50"
-              value={budget}
-              onChange={(e) => setBudget(e.target.value)}
-              disabled={submitted}
-            />
-            <span className="slider-value">{money(budget)}</span>
-          </div>
-        </div>
-
-        <div className="field">
-          <label htmlFor="distance">How far will you go?</label>
-          <div className="slider-row">
-            <input
-              id="distance"
-              type="range"
-              min="1"
-              max="15"
-              step="1"
-              value={distance}
-              onChange={(e) => setDistance(e.target.value)}
-              disabled={submitted}
-            />
-            <span className="slider-value">{km(distance)}</span>
-          </div>
         </div>
       </div>
 

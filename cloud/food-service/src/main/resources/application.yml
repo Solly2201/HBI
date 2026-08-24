@@ -5,9 +5,9 @@ server:
 
 spring:
   application:
-    name: restaurant-service
+    name: food-service
   datasource:
-    url: ${DATABASE_URL:jdbc:postgresql://localhost:5435/restaurant_db}
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5435/food_db}
     username: ${DATABASE_USERNAME:hbi}
     password: ${DATABASE_PASSWORD:hbi}
   jpa:
@@ -29,8 +29,8 @@ management:
 
 info:
   app:
-    name: HBI Cloud - Restaurant Service
-    responsibility: Restaurant catalogue, cuisine/budget/distance filtering
+    name: HBI Microservices - Food Service
+    responsibility: Food catalogue, cuisine filtering
 
 logging:
   level:

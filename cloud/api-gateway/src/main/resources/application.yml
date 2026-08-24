@@ -39,7 +39,7 @@ spring:
           uri: ${RATING_SERVICE_URL:http://localhost:8084}
           order: 0
           predicates:
-            - Path=/api/rooms/*/preferences,/api/rooms/*/ratings,/api/rooms/*/recommendations,/api/rooms/*/finalize,/api/rooms/*/decision,/api/rooms/*/candidates
+            - Path=/api/rooms/*/preferences,/api/rooms/*/ratings,/api/rooms/*/recommendations,/api/rooms/*/finalize,/api/rooms/*/decision,/api/rooms/*/candidates,/api/rooms/*/blend-now
 
         - id: rating-service
           uri: ${RATING_SERVICE_URL:http://localhost:8084}
@@ -69,11 +69,11 @@ spring:
           predicates:
             - Path=/api/users/**
 
-        - id: restaurant-service
-          uri: ${RESTAURANT_SERVICE_URL:http://localhost:8083}
+        - id: food-service
+          uri: ${FOOD_SERVICE_URL:http://localhost:8083}
           order: 10
           predicates:
-            - Path=/api/restaurants/**
+            - Path=/api/foods/**
 
 hbi:
   jwt:
@@ -93,7 +93,7 @@ management:
 
 info:
   app:
-    name: HBI Cloud - API Gateway
+    name: HBI Microservices - API Gateway
     responsibility: Single entry point, JWT verification, routing to microservices
 
 logging:

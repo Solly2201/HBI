@@ -61,15 +61,15 @@ h.check('host starts the blend (LOBBY -> PREFERENCES)', toPrefs.data?.status ===
 h.check('ROOM_STATE_CHANGED pushed to User B',
   await waitFor(() => bEvents.some((e) => e.type === 'ROOM_STATE_CHANGED')));
 
-const cuisines = await call('GET', '/api/restaurants/cuisines');
+const cuisines = await call('GET', '/api/foods/cuisines');
 h.check('cuisine list available for selection', cuisines.data?.length >= 5, `${cuisines.data?.length}`);
 
 const pa = await call('POST', `/api/rooms/${ROOM}/preferences`, {
-  token: alice.token, body: { cuisines: ['Indian', 'Chinese'], maxBudget: 700, maxDistanceKm: 6 },
+  token: alice.token, body: { cuisines: ['Indian', 'Chinese'] },
 });
 h.check('User A submits cuisines', pa.status === 200, `got ${pa.status}`);
 const pb = await call('POST', `/api/rooms/${ROOM}/preferences`, {
-  token: bob.token, body: { cuisines: ['Italian'], maxBudget: 900, maxDistanceKm: 8 },
+  token: bob.token, body: { cuisines: ['Italian'] },
 });
 h.check('User B submits cuisines', pb.status === 200, `got ${pb.status}`);
 
@@ -88,7 +88,7 @@ h.check('shortlist generated', Array.isArray(shortlist) && shortlist.length > 0,
 const fav = shortlist[shortlist.length - 1];
 
 const r1 = await call('POST', `/api/rooms/${ROOM}/ratings`, {
-  token: alice.token, body: { restaurantId: fav.id, score: 5 },
+  token: alice.token, body: { foodId: fav.id, score: 5 },
 });
 h.check('rating accepted', r1.status === 200 && r1.data?.accepted === true, `got ${r1.status}`);
 h.check('RATING_SUBMITTED pushed to the other user',
@@ -96,32 +96,32 @@ h.check('RATING_SUBMITTED pushed to the other user',
 h.check('RECOMMENDATIONS_GENERATED pushed',
   await waitFor(() => bEvents.some((e) => e.type === 'RECOMMENDATIONS_GENERATED')));
 
-// -------- duplicate rating (same user, same restaurant, new score)
+// -------- duplicate rating (same user, same food, new score)
 const dupRate = await call('POST', `/api/rooms/${ROOM}/ratings`, {
-  token: alice.token, body: { restaurantId: fav.id, score: 4 },
+  token: alice.token, body: { foodId: fav.id, score: 4 },
 });
 h.check('duplicate rating is accepted as an overwrite (200)', dupRate.status === 200,
   `got ${dupRate.status}`);
 const afterDup = await call('GET', `/api/rooms/${ROOM}/ratings`, { token: alice.token });
-const mine = (afterDup.data?.ratings || []).filter((r) => r.userId === alice.id && r.restaurantId === fav.id);
+const mine = (afterDup.data?.ratings || []).filter((r) => r.userId === alice.id && r.foodId === fav.id);
 h.check('duplicate rating overwrites rather than duplicating', mine.length === 1 && mine[0].score === 4,
   JSON.stringify(mine));
 
 // -------- invalid ratings
 for (const [label, body] of [
-  ['score 0', { restaurantId: fav.id, score: 0 }],
-  ['score 6', { restaurantId: fav.id, score: 6 }],
-  ['score null', { restaurantId: fav.id, score: null }],
-  ['missing restaurantId', { score: 3 }],
+  ['score 0', { foodId: fav.id, score: 0 }],
+  ['score 6', { foodId: fav.id, score: 6 }],
+  ['score null', { foodId: fav.id, score: null }],
+  ['missing foodId', { score: 3 }],
 ]) {
   const bad = await call('POST', `/api/rooms/${ROOM}/ratings`, { token: alice.token, body });
   h.check(`invalid rating rejected: ${label} (400)`, bad.status === 400, `got ${bad.status}`);
 }
 const ghost = await call('POST', `/api/rooms/${ROOM}/ratings`, {
-  token: alice.token, body: { restaurantId: 999999, score: 3 },
+  token: alice.token, body: { foodId: 999999, score: 3 },
 });
-h.check('rating a non-existent restaurant id', ghost.status >= 400,
-  `got ${ghost.status} -- BUG if 200: no referential check against restaurant-service`);
+h.check('rating a non-existent food id is rejected', ghost.status >= 400,
+  `got ${ghost.status} -- BUG if 200: no referential check against the shortlist`);
 
 h.section('Recommendations and decision');
 
@@ -133,16 +133,16 @@ h.check('ranks are 1..n in order',
   recs.data.recommendations.every((r, i) => r.rank === i + 1));
 
 // Everyone finishes -> automatic decision.
-for (const r of shortlist) {
+for (const f of shortlist) {
   // eslint-disable-next-line no-await-in-loop
   await call('POST', `/api/rooms/${ROOM}/ratings`, {
-    token: alice.token, body: { restaurantId: r.id, score: r.id === fav.id ? 5 : 2 },
+    token: alice.token, body: { foodId: f.id, score: f.id === fav.id ? 5 : 2 },
   });
 }
-for (const r of shortlist) {
+for (const f of shortlist) {
   // eslint-disable-next-line no-await-in-loop
   await call('POST', `/api/rooms/${ROOM}/ratings`, {
-    token: bob.token, body: { restaurantId: r.id, score: r.id === fav.id ? 5 : 3 },
+    token: bob.token, body: { foodId: f.id, score: f.id === fav.id ? 5 : 3 },
   });
 }
 
@@ -153,9 +153,160 @@ h.check('DECISION_FINALIZED pushed to User B',
 
 const decision = await call('GET', `/api/rooms/${ROOM}/decision`, { token: alice.token });
 h.check('decision retrievable (200)', decision.status === 200, `got ${decision.status}`);
-h.check('decision picked the highest-scored restaurant', decision.data?.restaurantId === fav.id,
-  `picked ${decision.data?.restaurant?.name}, expected ${fav.name}`);
+h.check('decision picked the highest-scored food', decision.data?.foodId === fav.id,
+  `picked ${decision.data?.food?.name}, expected ${fav.name}`);
 h.check('decision was automatic', decision.data?.decidedBy === 'AUTO', decision.data?.decidedBy);
+h.check('no restaurant data anywhere in the decision',
+  !JSON.stringify(decision.data).toLowerCase().includes('restaurant'),
+  JSON.stringify(decision.data));
+
+const finalRecsA = await call('GET', `/api/rooms/${ROOM}/recommendations`, { token: alice.token });
+const finalRecsB = await call('GET', `/api/rooms/${ROOM}/recommendations`, { token: bob.token });
+h.check('both players read the same final food ranking',
+  JSON.stringify(finalRecsA.data?.recommendations?.map((r) => r.food?.id))
+    === JSON.stringify(finalRecsB.data?.recommendations?.map((r) => r.food?.id)));
+h.check('ranking entries are food items with name and cuisine',
+  finalRecsA.data.recommendations.every((r) => r.food?.name && r.food?.cuisine));
+
+// ===================================================== early blend (4A)
+h.section('Optional early blend - BLEND NOW');
+
+{
+  const carol = await makeUser(`fa_eb_a_${S}`);
+  const dave = await makeUser(`fa_eb_b_${S}`);
+  const room = (await call('POST', '/api/rooms', { token: carol.token })).data.code;
+  await call('POST', `/api/rooms/${room}/join`, { token: dave.token });
+  await call('PUT', `/api/rooms/${room}/status`, { token: carol.token, body: { status: 'PREFERENCES' } });
+  await call('POST', `/api/rooms/${room}/preferences`, { token: carol.token, body: { cuisines: [] } });
+  await call('POST', `/api/rooms/${room}/preferences`, { token: dave.token, body: { cuisines: [] } });
+  await call('PUT', `/api/rooms/${room}/status`, { token: carol.token, body: { status: 'RATING' } });
+  const foods = (await call('GET', `/api/rooms/${room}/candidates`, { token: carol.token })).data;
+  const progress0 = (await call('GET', `/api/rooms/${room}/ratings`, { token: carol.token })).data.progress;
+  const min = progress0.minRatingsRequired;
+  h.check('server states the minimum rating count (half the shortlist, rounded up)',
+    min === Math.max(1, Math.ceil(foods.length / 2)),
+    `min ${min} for shortlist ${foods.length}`);
+
+  // Below the minimum: refused.
+  for (let i = 0; i < min - 1; i += 1) {
+    await call('POST', `/api/rooms/${room}/ratings`, {
+      token: carol.token, body: { foodId: foods[i].id, score: 5 },
+    });
+  }
+  const early = await call('POST', `/api/rooms/${room}/blend-now`, { token: carol.token });
+  h.check('player cannot BLEND NOW below the minimum (409)', early.status === 409,
+    `got ${early.status} after ${min - 1} ratings`);
+
+  // At the minimum: allowed, and the player is finished without rating the rest.
+  await call('POST', `/api/rooms/${room}/ratings`, {
+    token: carol.token, body: { foodId: foods[min - 1].id, score: 4 },
+  });
+  const done = await call('POST', `/api/rooms/${room}/blend-now`, { token: carol.token });
+  h.check('player can BLEND NOW at the minimum (200)', done.status === 200, `got ${done.status}`);
+  h.check('player counts as finished without rating the remaining foods',
+    done.data?.progress?.membersFinished === 1
+      && done.data?.progress?.finishedUserIds?.includes(carol.id),
+    JSON.stringify(done.data?.progress));
+
+  const dupDone = await call('POST', `/api/rooms/${room}/blend-now`, { token: carol.token });
+  h.check('pressing BLEND NOW twice is harmless (200)', dupDone.status === 200, `got ${dupDone.status}`);
+
+  // The other player's view: correct waiting state, and a refresh resumes it.
+  const daveView = (await call('GET', `/api/rooms/${room}/ratings`, { token: dave.token })).data;
+  h.check('the other player sees 1 of 2 finished', daveView.progress?.membersFinished === 1,
+    JSON.stringify(daveView.progress));
+  const carolRefresh = (await call('GET', `/api/rooms/${room}/ratings`, { token: carol.token })).data;
+  h.check('a refresh still reports the early-blended player as finished',
+    carolRefresh.progress?.finishedUserIds?.includes(carol.id));
+
+  // Dave finishes fully -> automatic decision that includes Carol's partial ratings.
+  for (const f of foods) {
+    await call('POST', `/api/rooms/${room}/ratings`, { token: dave.token, body: { foodId: f.id, score: 3 } });
+  }
+  const decided = await waitFor(async () => (await call('GET', `/api/rooms/${room}/decision`,
+    { token: dave.token })).status === 200, { attempts: 60, delay: 250 });
+  h.check('room auto-finalises once the early blender and the full rater are both done', decided);
+  const recsAfter = (await call('GET', `/api/rooms/${room}/recommendations`, { token: dave.token })).data;
+  const topFood = recsAfter.recommendations?.[0]?.food?.id;
+  h.check("the early player's partial ratings are included (their 5-scored food leads)",
+    topFood === foods[0].id,
+    `leader ${topFood}, expected ${foods[0].id}`);
+}
+
+// ===================================================== host threshold (4B)
+h.section('Host early start / force blend - 50% threshold');
+
+{
+  const host = await makeUser(`fa_ht_h_${S}`);
+  const guest = await makeUser(`fa_ht_g_${S}`);
+  const room = (await call('POST', '/api/rooms', { token: host.token })).data.code;
+  await call('POST', `/api/rooms/${room}/join`, { token: guest.token });
+  await call('PUT', `/api/rooms/${room}/status`, { token: host.token, body: { status: 'PREFERENCES' } });
+  await call('POST', `/api/rooms/${room}/preferences`, { token: host.token, body: { cuisines: [] } });
+  await call('PUT', `/api/rooms/${room}/status`, { token: host.token, body: { status: 'RATING' } });
+  const foods = (await call('GET', `/api/rooms/${room}/candidates`, { token: host.token })).data;
+  const min = (await call('GET', `/api/rooms/${room}/ratings`, { token: host.token }))
+    .data.progress.minRatingsRequired;
+
+  // Below the threshold (0 of 2 eligible): refused even for the host.
+  const below = await call('POST', `/api/rooms/${room}/finalize`, { token: host.token });
+  h.check('host below the 50% threshold is refused (409)', below.status === 409, `got ${below.status}`);
+
+  // One short of eligibility is still below.
+  for (let i = 0; i < min - 1; i += 1) {
+    await call('POST', `/api/rooms/${room}/ratings`, { token: host.token, body: { foodId: foods[i].id, score: 4 } });
+  }
+  const stillBelow = await call('POST', `/api/rooms/${room}/finalize`, { token: host.token });
+  h.check('host still refused while nobody has reached the minimum (409)',
+    stillBelow.status === 409, `got ${stillBelow.status}`);
+
+  // Exactly at the threshold: 1 of 2 active players eligible = 50%.
+  await call('POST', `/api/rooms/${room}/ratings`, {
+    token: host.token, body: { foodId: foods[min - 1].id, score: 4 },
+  });
+  const nonHost = await call('POST', `/api/rooms/${room}/finalize`, { token: guest.token });
+  h.check('non-host is refused even when the threshold is met (403)', nonHost.status === 403,
+    `got ${nonHost.status}`);
+  const atThreshold = await call('POST', `/api/rooms/${room}/finalize`, { token: host.token });
+  h.check('host exactly at the 50% threshold may force the blend (200)', atThreshold.status === 200,
+    `got ${atThreshold.status}`);
+  h.check('forced decision is recorded as HOST', atThreshold.data?.decidedBy === 'HOST',
+    atThreshold.data?.decidedBy);
+
+  const repeat = await call('POST', `/api/rooms/${room}/finalize`, { token: host.token });
+  h.check('repeated finalization is idempotent (same food)',
+    repeat.status === 200 && repeat.data?.foodId === atThreshold.data?.foodId,
+    `got ${repeat.status} / ${repeat.data?.foodId}`);
+}
+
+{
+  // Inactive players must not count toward the threshold.
+  const host = await makeUser(`fa_ht2_h_${S}`);
+  const guest = await makeUser(`fa_ht2_g_${S}`);
+  const leaver = await makeUser(`fa_ht2_l_${S}`);
+  const room = (await call('POST', '/api/rooms', { token: host.token })).data.code;
+  await call('POST', `/api/rooms/${room}/join`, { token: guest.token });
+  await call('POST', `/api/rooms/${room}/join`, { token: leaver.token });
+  await call('PUT', `/api/rooms/${room}/status`, { token: host.token, body: { status: 'PREFERENCES' } });
+  await call('POST', `/api/rooms/${room}/preferences`, { token: host.token, body: { cuisines: [] } });
+  await call('PUT', `/api/rooms/${room}/status`, { token: host.token, body: { status: 'RATING' } });
+  const foods = (await call('GET', `/api/rooms/${room}/candidates`, { token: host.token })).data;
+  const min = (await call('GET', `/api/rooms/${room}/ratings`, { token: host.token }))
+    .data.progress.minRatingsRequired;
+
+  for (let i = 0; i < min; i += 1) {
+    await call('POST', `/api/rooms/${room}/ratings`, { token: host.token, body: { foodId: foods[i].id, score: 4 } });
+  }
+  // 1 of 3 active eligible: below threshold.
+  const with3 = await call('POST', `/api/rooms/${room}/finalize`, { token: host.token });
+  h.check('1 eligible of 3 active is below 50% (409)', with3.status === 409, `got ${with3.status}`);
+
+  // The third player leaves; 1 of 2 active eligible = 50% -> allowed.
+  await call('DELETE', `/api/rooms/${room}/members/${leaver.id}`, { token: leaver.token });
+  const with2 = await call('POST', `/api/rooms/${room}/finalize`, { token: host.token });
+  h.check('after a player leaves, inactive players no longer count: 1 of 2 = 50% (200)',
+    with2.status === 200, `got ${with2.status}`);
+}
 
 // ===================================================== auth failure modes
 h.section('Authentication and authorization');
@@ -247,17 +398,17 @@ const joinDecided = await call('POST', `/api/rooms/${ROOM}/join`, { token: (awai
 h.check('joining a DECIDED room is refused (409)', joinDecided.status === 409, `got ${joinDecided.status}`);
 
 const rateAfter = await call('POST', `/api/rooms/${ROOM}/ratings`, {
-  token: alice.token, body: { restaurantId: fav.id, score: 1 },
+  token: alice.token, body: { foodId: fav.id, score: 1 },
 });
 const decisionAfter = await call('GET', `/api/rooms/${ROOM}/decision`, { token: alice.token });
 h.check('ratings after finalization do not change the decision',
-  decisionAfter.data?.restaurantId === fav.id,
-  `rating POST returned ${rateAfter.status}; decision now ${decisionAfter.data?.restaurantId}`);
+  decisionAfter.data?.foodId === fav.id,
+  `rating POST returned ${rateAfter.status}; decision now ${decisionAfter.data?.foodId}`);
 h.check('rating after finalization is still accepted (documented: room is not locked)',
   rateAfter.status === 200, `got ${rateAfter.status}`);
 
 const refinalize = await call('POST', `/api/rooms/${ROOM}/finalize`, { token: alice.token });
-h.check('re-finalizing is idempotent', refinalize.data?.restaurantId === fav.id, `got ${refinalize.status}`);
+h.check('re-finalizing is idempotent', refinalize.data?.foodId === fav.id, `got ${refinalize.status}`);
 
 // ===================================================== disconnects
 h.section('Disconnects and host handoff');
@@ -275,7 +426,7 @@ const afterHostWsDrop = await call('GET', `/api/rooms/${hostRoom}/members`, { to
 const hostRow = afterHostWsDrop.data?.find((m) => m.userId === alice.id);
 h.check('host WebSocket disconnect does NOT mark the host inactive (documented behaviour)',
   hostRow?.active === true,
-  `host active=${hostRow?.active} -- HBI Web drops players on socket disconnect; HBI Cloud only reacts to an explicit leave`);
+  `host active=${hostRow?.active} -- HBI Web drops players on socket disconnect; HBI Microservices only reacts to an explicit leave`);
 
 // -------- non-host WebSocket disconnect
 const guestSock = await subscribeRoom(bob.token, hostRoom, () => {});

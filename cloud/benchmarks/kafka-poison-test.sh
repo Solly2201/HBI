@@ -66,7 +66,7 @@ check "bounded logging (< 50 error lines in the last minute)" \
 #    (progress for an unknown room is empty) but it IS consumed - offset moves.
 END_BEFORE=$(timeout 30 $KAFKA/kafka-get-offsets.sh --bootstrap-server kafka:9092 \
   --topic hbi.ratings 2>/dev/null | awk -F: '{print $3}')
-echo '{"eventType":"RATING_SUBMITTED","roomId":"HBITEST","userId":1,"restaurantId":1,"score":5,"occurredAt":"2026-08-23T00:00:00Z"}' \
+echo '{"eventType":"RATING_SUBMITTED","roomId":"HBITEST","userId":1,"foodId":1,"score":5,"occurredAt":"2026-08-23T00:00:00Z"}' \
   | timeout 30 $KAFKA/kafka-console-producer.sh \
     --bootstrap-server kafka:9092 --topic hbi.ratings >/dev/null 2>&1
 

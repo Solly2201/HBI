@@ -1,7 +1,7 @@
 import axios from 'axios';
 
 /**
- * Every call in HBI Cloud goes through the API Gateway.
+ * Every call in HBI Microservices goes through the API Gateway.
  *
  * There is deliberately no per-service base URL anywhere in this app: the
  * browser knows about one origin, and the gateway decides which microservice
@@ -106,9 +106,9 @@ export const leaveRoom = (code, userId) =>
 export const setRoomStatus = (code, status) =>
   api.put(`/rooms/${code}/status`, { status }).then((r) => r.data);
 
-// ------------------------------------------------------------ restaurants
+// ------------------------------------------------------- food catalogue
 
-export const getCuisines = () => api.get('/restaurants/cuisines').then((r) => r.data);
+export const getCuisines = () => api.get('/foods/cuisines').then((r) => r.data);
 
 // ------------------------------------------------- preferences & ratings
 
@@ -116,9 +116,10 @@ export const submitPreferences = (code, body) =>
   api.post(`/rooms/${code}/preferences`, body).then((r) => r.data);
 export const getPreferences = (code) => api.get(`/rooms/${code}/preferences`).then((r) => r.data);
 export const getCandidates = (code) => api.get(`/rooms/${code}/candidates`).then((r) => r.data);
-export const submitRating = (code, restaurantId, score) =>
-  api.post(`/rooms/${code}/ratings`, { restaurantId, score }).then((r) => r.data);
+export const submitRating = (code, foodId, score) =>
+  api.post(`/rooms/${code}/ratings`, { foodId, score }).then((r) => r.data);
 export const getRatings = (code) => api.get(`/rooms/${code}/ratings`).then((r) => r.data);
+export const blendNow = (code) => api.post(`/rooms/${code}/blend-now`).then((r) => r.data);
 export const getRecommendations = (code) =>
   api.get(`/rooms/${code}/recommendations`).then((r) => r.data);
 export const finalizeRoom = (code) => api.post(`/rooms/${code}/finalize`).then((r) => r.data);

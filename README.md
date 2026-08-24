@@ -19,15 +19,12 @@ on deliberately different architectures:
 |---|---|---|---|
 | 1 | **HBI Web** | HTML/CSS/JS + Node.js + Express + Socket.IO | [`web/`](web/) |
 | 2 | **HBI Mobile** | Native Android (Java/XML) + Firebase | [`mobile/`](mobile/) |
-| 3 | **HBI Cloud** | React/Vite + Spring Boot microservices + Kafka + Docker | [`cloud/`](cloud/) |
+| 3 | **HBI Microservices** | React/Vite + Spring Boot microservices + Kafka + Docker | [`cloud/`](cloud/) |
 
-Web and Mobile are self-contained client applications. Cloud is a separate
-cloud-native rebuild — it reuses HBI's business logic, cuisine vocabulary, food imagery
-and branding, but shares no code with the other two and does not depend on them.
-
-One difference is worth stating up front, because it changes what the app decides:
-**Web and Mobile rate individual food items**, while **Cloud rates restaurants**,
-scoring them against the group's cuisine, budget and distance preferences.
+Web and Mobile are self-contained client applications. HBI Microservices is a
+separate distributed rebuild — it reuses HBI's business logic, cuisine vocabulary,
+food imagery and branding, but shares no code with the other two and does not depend
+on them.
 
 ## Shared flow
 
@@ -111,9 +108,9 @@ The app is organized around one fragment per stage of the flow:
 Home → Waiting → Cuisine Selection → Food Rating → Results
 ```
 
-## HBI Cloud
+## HBI Microservices
 
-A cloud-native rebuild of HBI as a set of Spring Boot microservices behind an API
+A distributed rebuild of HBI as a set of Spring Boot microservices behind an API
 gateway, communicating over REST and Apache Kafka, with real-time updates pushed to
 clients over STOMP WebSockets.
 
@@ -124,7 +121,7 @@ clients over STOMP WebSockets.
 | **API Gateway** | Single entry point, JWT verification, routing, WebSocket upgrade auth | — |
 | **User Service** | Anonymous player sessions, JWT issuing | `user_db` |
 | **Room Service** | Room lifecycle, membership, room state | `room_db` |
-| **Restaurant Service** | Restaurant catalogue, cuisine/budget/distance search | `restaurant_db` |
+| **Food Service** | Food catalogue, cuisine filtering | `food_db` |
 | **Rating Service** | Preferences, ratings, recommendation scoring **and group decision logic** | `rating_db` |
 
 There is no separate decision service — recommendation scoring and decision
@@ -150,13 +147,13 @@ finalization both live in the Rating Service (`BlendService`, `RecommendationEng
         +------------------+-----+------------+------------------+
         |                  |                  |                 |
         v                  v                  v                 v
-  User Service        Room Service     Restaurant Service   Rating Service
+  User Service        Room Service       Food Service      Rating Service
      :8081               :8082              :8083              :8084
         |                  |                  |                 |
         v                  v                  v                 v
-    user_db            room_db          restaurant_db        rating_db
+    user_db            room_db             food_db           rating_db
 
-  Rating Service also calls Room Service and Restaurant Service over REST
+  Rating Service also calls Room Service and Food Service over REST
   when it scores a room's shortlist.
 
                              Apache Kafka
@@ -165,14 +162,14 @@ finalization both live in the Rating Service (`BlendService`, `RecommendationEng
                                                     and Room Service
   hbi.room-events.DLT / hbi.ratings.DLT   dead-letter topics
 
-  Events: USER_JOINED, RATING_SUBMITTED, RECOMMENDATIONS_GENERATED,
-          DECISION_FINALIZED, ROOM_STATE_CHANGED
+  Events: USER_JOINED, RATING_SUBMITTED, PLAYER_FINISHED,
+          RECOMMENDATIONS_GENERATED, DECISION_FINALIZED, ROOM_STATE_CHANGED
 
                        STOMP WebSocket (via gateway)
              Rating Service -> subscribed clients in the room
 ```
 
-### Cloud engineering
+### Distributed engineering
 
 - **Dockerized services** — 11 containers via Docker Compose
 - **Database-per-service** — four independent PostgreSQL instances, no shared schema
@@ -197,7 +194,10 @@ finalization both live in the Rating Service (`BlendService`, `RecommendationEng
 ## Testing & Performance
 
 All figures below are **measured local benchmark results** from Docker Compose on a
-single development machine. They are not AWS production numbers.
+single development machine. They are not AWS production numbers. They predate the
+food-domain refactor, so endpoint names reflect the restaurant-era API of the time
+(`GET /api/restaurants` is today's `GET /api/foods`); the numbers are preserved as
+recorded.
 
 **Test suites**
 
@@ -234,7 +234,7 @@ Full methodology, per-endpoint tables and resource sampling are in
 
 ## Running the implementations
 
-### HBI Cloud
+### HBI Microservices
 
 Requires Docker and the Compose plugin.
 
@@ -327,7 +327,7 @@ HBI/
 │   ├── api-gateway/
 │   ├── user-service/
 │   ├── room-service/
-│   ├── restaurant-service/
+│   ├── food-service/
 │   ├── rating-service/
 │   ├── frontend/           # React + Vite
 │   ├── benchmarks/         # load, functional, regression, Kafka suites
@@ -349,11 +349,15 @@ HBI/
 - Timers and additional host controls
 - Richer filtering and result explanations
 - Further improvements to the mobile experience
-- Moving secrets to a managed store and adding session-creation rate limiting for Cloud
-- Multi-instance WebSocket support (external STOMP broker) for Cloud
+- An actual cloud (AWS) deployment of the microservices implementation, which today
+  runs on Docker Compose locally or on any single VM
+- Moving secrets to a managed store and adding session-creation rate limiting for
+  the microservices implementation
+- Multi-instance WebSocket support (external STOMP broker) for the microservices
+  implementation
 
-Some earlier goals have since been realized in HBI Cloud, including persistent
-database integration, restaurant-level decisions, and filtering by price and distance.
+Some earlier goals have since been realized in HBI Microservices, including
+persistent database integration and real-time group decisions over Kafka.
 
 ## Project documentation
 
