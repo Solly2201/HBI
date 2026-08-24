@@ -665,7 +665,7 @@ Stated plainly so nothing here is mistaken for a complete picture:
 ## Appendix — how to reproduce
 
 ```bash
-cd cloud
+cd distributed
 docker compose up --build -d
 
 # functional sweep (72 assertions)

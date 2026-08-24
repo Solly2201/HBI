@@ -37,7 +37,7 @@ docker --version && docker compose version
 
 ```bash
 git clone https://github.com/Solly2201/HBI.git
-cd HBI/cloud
+cd HBI/distributed
 ```
 
 ---

@@ -137,7 +137,7 @@ WebSocket fan-out channel — no business data).
 ### Start everything
 
 ```bash
-cd cloud
+cd distributed
 cp .env.example .env
 # edit .env and set a real JWT_SECRET (at least 32 characters)
 
@@ -174,7 +174,7 @@ environment, so it can be run directly once its database and Kafka are up:
 ```bash
 docker compose up -d user-db room-db food-db rating-db kafka
 
-cd cloud/user-service
+cd distributed/user-service
 JWT_SECRET=your-long-dev-secret-at-least-32-characters \
 DATABASE_URL=jdbc:postgresql://localhost:5433/user_db \
   mvn spring-boot:run
@@ -186,7 +186,7 @@ ports (5433–5436) and Kafka on `localhost:29092`.
 ### Frontend in dev mode
 
 ```bash
-cd cloud/frontend
+cd distributed/frontend
 npm install
 npm run dev            # http://localhost:5173, proxies /api and /ws to :8080
 ```
@@ -194,7 +194,7 @@ npm run dev            # http://localhost:5173, proxies /api and /ws to :8080
 ### Build the backend without Docker
 
 ```bash
-cd cloud
+cd distributed
 mvn -DskipTests package      # builds all five services
 mvn test                     # runs the unit tests
 ```
@@ -415,7 +415,7 @@ SELECT id, name, cuisine FROM food_item;
 -- modify a dish / image
 UPDATE food_item SET name = 'Vada Pav', image_url = '/images/samosa.jpg' WHERE id = 2;
 
--- add one (image_url must point at a file in cloud/frontend/public/images/)
+-- add one (image_url must point at a file in distributed/frontend/public/images/)
 INSERT INTO food_item (name, cuisine, image_url)
 VALUES ('Chai', 'Beverages', '/images/coffee.jpg');
 
@@ -574,7 +574,7 @@ what the Compose healthchecks poll.
 ### Unit tests
 
 ```bash
-cd cloud
+cd distributed
 mvn test
 ```
 
@@ -587,7 +587,7 @@ coverage influence, tie-breaking determinism, and unrated candidates.
 With the stack running:
 
 ```bash
-cd cloud/frontend && npm install    # once, for the STOMP client
+cd distributed/frontend && npm install    # once, for the STOMP client
 cd ..
 node scripts/smoke-test.mjs                        # Node 22+
 node --experimental-websocket scripts/smoke-test.mjs   # Node 21 and older

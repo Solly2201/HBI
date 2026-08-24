@@ -372,7 +372,7 @@ async function connectStomp(token, roomCode, onEvent) {
     const require = createRequire(path.join(HERE, '..', 'frontend', 'package.json'));
     ({ Client } = require('@stomp/stompjs'));
   } catch {
-    console.log('  !! STOMP client unavailable - run `npm install` in cloud/frontend first.');
+    console.log('  !! STOMP client unavailable - run `npm install` in distributed/frontend first.');
     return { connected: false, close() {} };
   }
 

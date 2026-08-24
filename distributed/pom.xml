@@ -13,7 +13,7 @@
 
     <!--
       Convenience aggregator so the whole backend can be built with a single
-      `mvn -f cloud/pom.xml package`. Each service module is intentionally
+      `mvn -f distributed/pom.xml package`. Each service module is intentionally
       standalone (it inherits from spring-boot-starter-parent, not from this
       POM) so that its Dockerfile can build it in isolation.
     -->

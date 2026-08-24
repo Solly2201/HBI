@@ -19,7 +19,7 @@ on deliberately different architectures:
 |---|---|---|---|
 | 1 | **HBI Web** | HTML/CSS/JS + Node.js + Express + Socket.IO | [`web/`](web/) |
 | 2 | **HBI Mobile** | Native Android (Java/XML) + Firebase | [`mobile/`](mobile/) |
-| 3 | **HBI Microservices** | React/Vite + Spring Boot microservices + Kafka + Docker | [`cloud/`](cloud/) |
+| 3 | **HBI Microservices** | React/Vite + Spring Boot microservices + Kafka + Docker | [`distributed/`](distributed/) |
 
 Web and Mobile are self-contained client applications. HBI Microservices is a
 separate distributed rebuild — it reuses HBI's business logic, cuisine vocabulary,
@@ -182,8 +182,8 @@ finalization both live in the Rating Service (`BlendService`, `RecommendationEng
   partition
 - **Health checks** on all 11 containers, with dependency ordering on startup
 - **Automated tests** — smoke, functional, regression, Kafka poison-message and load
-  suites under [`cloud/benchmarks/`](cloud/benchmarks/) and
-  [`cloud/scripts/`](cloud/scripts/)
+  suites under [`distributed/benchmarks/`](distributed/benchmarks/) and
+  [`distributed/scripts/`](distributed/scripts/)
 - **Deployment configuration** — a documented single-VM Docker Compose deployment
   (AWS `t3.medium` or equivalent, 2 vCPU / 4 GB), with TLS via a reverse proxy and an
   optional swap to managed Postgres such as RDS. Deployment-ready and documented; not
@@ -227,8 +227,8 @@ current code. Horizontal scaling has **not** been benchmarked, and the WebSocket
 layer is single-instance (Spring `SimpleBroker`).
 
 Full methodology, per-endpoint tables and resource sampling are in
-[`cloud/TESTING.md`](cloud/TESTING.md); the engineering log and bug write-ups are in
-[`cloud/PROJECT_STATUS.md`](cloud/PROJECT_STATUS.md).
+[`distributed/TESTING.md`](distributed/TESTING.md); the engineering log and bug write-ups are in
+[`distributed/PROJECT_STATUS.md`](distributed/PROJECT_STATUS.md).
 
 ---
 
@@ -239,7 +239,7 @@ Full methodology, per-endpoint tables and resource sampling are in
 Requires Docker and the Compose plugin.
 
 ```bash
-cd cloud
+cd distributed
 cp .env.example .env      # then set JWT_SECRET (at least 32 characters)
 docker compose up --build
 ```
@@ -249,10 +249,10 @@ port 8080.
 
 Further documentation:
 
-- [`cloud/README.md`](cloud/README.md) — architecture, API reference, Kafka events
-- [`cloud/DEPLOYMENT.md`](cloud/DEPLOYMENT.md) — deploying to a cloud VM
-- [`cloud/TESTING.md`](cloud/TESTING.md) — full test and benchmark results
-- [`cloud/PROJECT_STATUS.md`](cloud/PROJECT_STATUS.md) — engineering log and status
+- [`distributed/README.md`](distributed/README.md) — architecture, API reference, Kafka events
+- [`distributed/DEPLOYMENT.md`](distributed/DEPLOYMENT.md) — deploying to a cloud VM
+- [`distributed/TESTING.md`](distributed/TESTING.md) — full test and benchmark results
+- [`distributed/PROJECT_STATUS.md`](distributed/PROJECT_STATUS.md) — engineering log and status
 
 ### HBI Web
 
@@ -290,7 +290,7 @@ Then sync Gradle and build. Do **not** commit `google-services.json`.
 HBI/
 ├── web/       # Socket.IO web implementation
 ├── mobile/    # Android implementation
-└── cloud/     # Spring Boot microservices implementation
+└── distributed/  # Spring Boot microservices implementation
 ```
 
 <details>
@@ -323,7 +323,7 @@ HBI/
 │   ├── gradle/
 │   └── settings.gradle.kts
 │
-├── cloud/
+├── distributed/
 │   ├── api-gateway/
 │   ├── user-service/
 │   ├── room-service/
