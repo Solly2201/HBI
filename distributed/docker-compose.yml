@@ -8,7 +8,7 @@
 # only ports published to the host are the ones a person or a debugging tool
 # actually needs.
 
-name: hbi-cloud
+name: hbi-distributed
 
 x-db-env: &db-env
   POSTGRES_USER: ${DATABASE_USERNAME:-hbi}

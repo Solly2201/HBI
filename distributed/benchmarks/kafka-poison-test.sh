@@ -78,7 +78,7 @@ check "valid message after the poison one is consumed (lag 0)" \
   "$([ "$L" = "0" ]; echo $?)" "(lag=$L)"
 
 # 6. CPU sanity: the consumer must be idle-ish, not pinned at 100 %.
-CPU=$(docker stats --no-stream --format "{{.CPUPerc}}" hbi-cloud-rating-service-1 | tr -d '%')
+CPU=$(docker stats --no-stream --format "{{.CPUPerc}}" hbi-distributed-rating-service-1 | tr -d '%')
 CPU_INT=${CPU%.*}
 check "rating-service CPU below 50% after the test" \
   "$([ "${CPU_INT:-100}" -lt 50 ]; echo $?)" "(got ${CPU}%)"

@@ -18,7 +18,7 @@ while [ "$(date +%s)" -lt "$END" ]; do
         /MiB/ {gsub(/MiB/,""); printf "%.1f", $1; next}
         /KiB/ {gsub(/KiB/,""); printf "%.3f", $1/1024; next}
         {print "0"}')
-      svc=$(echo "$name" | sed 's/^hbi-cloud-//; s/-1$//')
+      svc=$(echo "$name" | sed 's/^hbi-distributed-//; s/-1$//')
       echo "$TS,$svc,${cpu%\%},$mb,${memp%\%},\"$net\",\"$blk\",$pids" >> "$OUT"
     done
   sleep 2
