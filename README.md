@@ -364,8 +364,6 @@ implementations, user interface, results and future scope.
 
 **Shreshtha Bindal**
 
-B023
-
 ## License
 
 This project was developed as an academic project. No open-source license is currently
