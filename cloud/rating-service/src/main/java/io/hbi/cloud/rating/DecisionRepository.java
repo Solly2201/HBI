@@ -8,4 +8,6 @@ import java.util.Optional;
 public interface DecisionRepository extends JpaRepository<Decision, Long> {
 
     Optional<Decision> findByRoomCode(String roomCode);
+
+    void deleteByRoomCode(String roomCode);
 }

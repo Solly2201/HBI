@@ -419,6 +419,21 @@ The seed list itself lives in
 `restaurant-service/src/main/java/io/hbi/cloud/restaurant/RestaurantSeeder.java` —
 edit it only if you want a different *default* dataset baked into the image.
 
+### Room lifecycle
+
+Rooms are garbage-collected by inactivity, not by age. Every join, leave, status
+change and rating refreshes the room's `last_activity_at` (ratings reach the room
+service via the Kafka events it already consumes). A scheduled sweep in the room
+service (`CLEANUP_INTERVAL_MS`, default hourly) deletes rooms whose activity is
+older than `ROOM_TTL_HOURS` (default 24 h) together with their `room_member` rows,
+and publishes `ROOM_DELETED` on `hbi.room-events`; the rating service consumes that
+and deletes the room's preferences, ratings, candidates, recommendations and
+decision. Deletes are idempotent and members go before their room, so a partially
+completed sweep simply finishes on the next pass. An in-progress room is never
+deleted while anyone is playing — activity keeps it alive; DECIDED and abandoned
+rooms age out. Explicit Leave (with host handoff) and refresh/rejoin behaviour are
+unchanged: a temporary disconnect never touches membership.
+
 ---
 
 ## Authentication
@@ -624,5 +639,9 @@ Known and deliberate:
 - **Restaurant data is fictional** and seeded locally. There is no maps or delivery
   integration, and `distanceKm` is a fixed attribute rather than a real distance from
   the user.
-- **Rooms are never garbage-collected.** HBI Web drops empty rooms after a minute;
-  HBI Cloud keeps them, which is more useful for demonstrating but grows the database.
+- **Room cleanup is activity-based, not presence-based.** A player who closes the
+  browser stays flagged active (a refresh must be able to resume, so a WebSocket
+  drop never touches membership); an abandoned room therefore lingers until the
+  TTL sweep removes it (`ROOM_TTL_HOURS`, default 24 h). Mid-blend, the host's
+  "blend now" remains the escape hatch for a room stuck waiting on a vanished
+  player.

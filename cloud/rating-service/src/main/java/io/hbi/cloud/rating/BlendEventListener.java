@@ -39,6 +39,16 @@ public class BlendEventListener {
             return;
         }
         log.info("kafka <- {} for room {}", type, roomCode);
+
+        // The room service garbage-collected this room: drop everything this
+        // service stored for it. Idempotent — deleting nothing is fine — so
+        // replays and retries are harmless. Nothing is broadcast: the room is
+        // gone and nobody should be subscribed.
+        if ("ROOM_DELETED".equals(type)) {
+            blend.purgeRoom(roomCode);
+            return;
+        }
+
         broadcaster.send(roomCode, type, event);
     }
 

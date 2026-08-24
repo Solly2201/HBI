@@ -341,6 +341,21 @@ public class BlendService {
         return decisions.findByRoomCode(roomCode).map(this::decisionView);
     }
 
+    /**
+     * Removes everything this service stored for a room the room service has
+     * garbage-collected. Safe to call repeatedly: every delete is a no-op the
+     * second time.
+     */
+    @Transactional
+    public void purgeRoom(String roomCode) {
+        preferences.deleteByRoomCode(roomCode);
+        ratings.deleteByRoomCode(roomCode);
+        candidates.deleteByRoomCode(roomCode);
+        recommendations.deleteByRoomCode(roomCode);
+        decisions.deleteByRoomCode(roomCode);
+        log.info("purged rating data for deleted room {}", roomCode);
+    }
+
     private Map<String, Object> decisionView(Decision d) {
         Map<String, Object> m = new LinkedHashMap<>();
         m.put("roomId", d.getRoomCode());

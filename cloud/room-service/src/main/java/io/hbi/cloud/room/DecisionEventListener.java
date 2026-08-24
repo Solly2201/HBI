@@ -32,13 +32,25 @@ public class DecisionEventListener {
     @KafkaListener(topics = "${hbi.kafka.ratings-topic}", groupId = "${hbi.kafka.consumer-group-id}")
     @Transactional
     public void onRatingEvent(Map<String, Object> event) {
-        // The topic mostly carries RATING_SUBMITTED, which is not our concern.
-        if (!"DECISION_FINALIZED".equals(str(event.get("eventType")))) {
-            return;
-        }
+        String type = str(event.get("eventType"));
         String code = str(event.get("roomId"));
         if (code == null) {
-            log.warn("ignoring malformed decision event: {}", event);
+            log.warn("ignoring malformed rating event: {}", event);
+            return;
+        }
+
+        // A rating landing proves the room is being played: refresh its
+        // activity stamp so the TTL cleanup never reaps a room mid-blend,
+        // however long the rating phase drags on.
+        if ("RATING_SUBMITTED".equals(type)) {
+            rooms.findByCode(code).ifPresent(room -> {
+                room.touch();
+                rooms.save(room);
+            });
+            return;
+        }
+
+        if (!"DECISION_FINALIZED".equals(type)) {
             return;
         }
 
@@ -47,6 +59,7 @@ public class DecisionEventListener {
                 return; // replay or duplicate; nothing to do
             }
             room.setStatus(Room.Status.DECIDED);
+            room.touch();
             rooms.save(room);
             log.info("room {} marked DECIDED (blend finished)", code);
             events.publish("ROOM_STATE_CHANGED", room, room.getHostUserId(), null);

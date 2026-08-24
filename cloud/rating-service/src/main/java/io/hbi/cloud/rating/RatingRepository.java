@@ -11,4 +11,6 @@ public interface RatingRepository extends JpaRepository<Rating, Long> {
     List<Rating> findByRoomCode(String roomCode);
 
     Optional<Rating> findByRoomCodeAndUserIdAndRestaurantId(String roomCode, Long userId, Long restaurantId);
+
+    void deleteByRoomCode(String roomCode);
 }

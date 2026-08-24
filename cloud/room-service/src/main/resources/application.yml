@@ -40,6 +40,14 @@ hbi:
     room-events-topic: ${KAFKA_ROOM_EVENTS_TOPIC:hbi.room-events}
     ratings-topic: ${KAFKA_RATINGS_TOPIC:hbi.ratings}
     consumer-group-id: ${KAFKA_CONSUMER_GROUP_ID:hbi-room-service}
+  room:
+    # A room with no activity (join/leave/status change/rating) for this long
+    # is garbage-collected, together with its members and, via the
+    # ROOM_DELETED event, its rating-service data.
+    ttl-hours: ${ROOM_TTL_HOURS:24}
+  cleanup:
+    interval-ms: ${CLEANUP_INTERVAL_MS:3600000}
+    initial-delay-ms: ${CLEANUP_INITIAL_DELAY_MS:60000}
 
 management:
   endpoints:

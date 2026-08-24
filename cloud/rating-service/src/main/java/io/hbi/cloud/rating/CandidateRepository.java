@@ -8,4 +8,6 @@ import java.util.List;
 public interface CandidateRepository extends JpaRepository<Candidate, Long> {
 
     List<Candidate> findByRoomCodeOrderByPositionAsc(String roomCode);
+
+    void deleteByRoomCode(String roomCode);
 }

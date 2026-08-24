@@ -11,4 +11,6 @@ public interface PreferenceRepository extends JpaRepository<Preference, Long> {
     List<Preference> findByRoomCode(String roomCode);
 
     Optional<Preference> findByRoomCodeAndUserId(String roomCode, Long userId);
+
+    void deleteByRoomCode(String roomCode);
 }

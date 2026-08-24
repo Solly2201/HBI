@@ -440,3 +440,32 @@ figures above remain accurate as a record of what was measured at the time.
 
 The smoke, functional and regression suites were updated to start sessions
 instead of registering/logging in, and re-run green after the change.
+
+---
+
+## Room lifecycle cleanup (2026-08-24, third pass)
+
+Rooms are now garbage-collected. Design: inactivity-based TTL, owned by the
+services that own the data, no new infrastructure.
+
+- `room.last_activity_at` (nullable; null reads as `created_at` for pre-existing
+  rows) is refreshed on create, join, leave, status change, and on every
+  RATING_SUBMITTED event the room service already consumes — so a room being
+  played is never stale, however old it is.
+- A scheduled sweep in room-service (`CLEANUP_INTERVAL_MS`, default 1 h) deletes
+  rooms inactive for `ROOM_TTL_HOURS` (default 24 h) plus their members, one
+  room at a time (members first), and publishes `ROOM_DELETED` on the existing
+  `hbi.room-events` topic.
+- rating-service consumes `ROOM_DELETED` and purges that room's preferences,
+  ratings, candidates, recommendations and decision. All deletes are idempotent;
+  replays, retries and partially completed sweeps are safe. No cross-database
+  keys were introduced.
+- Deliberately unchanged: WebSocket disconnects still do not touch membership.
+  Refresh/resume is a required behaviour, and a disconnect-driven deactivation
+  would risk it for little gain — abandonment is covered by the TTL sweep and
+  the host's force-finalize. This supersedes the earlier "member liveness"
+  nice-to-have.
+- Covered by `RoomCleanupTest` (H2): abandoned room deleted with members,
+  DECIDED room deleted after TTL, active room kept regardless of age, recent
+  empty lobby kept, legacy null-activity rows fall back to created_at, repeated
+  sweeps are no-ops.

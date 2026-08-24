@@ -75,6 +75,8 @@ public class RoomController {
             }
             members.save(new RoomMember(room.getCode(), userId, userName));
         }
+        room.touch();
+        rooms.save(room);
 
         events.publish("USER_JOINED", room, userId, userName);
         return view(room);
@@ -112,11 +114,10 @@ public class RoomController {
         if (userId.equals(room.getHostUserId())) {
             members.findByRoomCodeAndActiveTrueOrderByJoinedAtAsc(room.getCode()).stream()
                     .findFirst()
-                    .ifPresent(next -> {
-                        room.setHostUserId(next.getUserId());
-                        rooms.save(room);
-                    });
+                    .ifPresent(next -> room.setHostUserId(next.getUserId()));
         }
+        room.touch();
+        rooms.save(room);
 
         events.publish("USER_LEFT", room, userId, member.getDisplayName());
         return view(room);
@@ -133,6 +134,7 @@ public class RoomController {
             throw new ResponseStatusException(HttpStatus.FORBIDDEN, "Only the host can move the room forward.");
         }
         room.setStatus(req.status());
+        room.touch();
         rooms.save(room);
 
         events.publish("ROOM_STATE_CHANGED", room, callerId, null);

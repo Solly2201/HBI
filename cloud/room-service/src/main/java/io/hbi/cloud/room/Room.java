@@ -42,6 +42,17 @@ public class Room {
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
 
+    /**
+     * When something last happened in this room: a join, a leave, a status
+     * change, a rating landing. The TTL cleanup deletes rooms whose activity
+     * has gone stale, never rooms that are merely old.
+     *
+     * Nullable so {@code ddl-auto: update} can add the column to a database
+     * that already has rows; a null is read as {@link #getCreatedAt()}.
+     */
+    @Column(name = "last_activity_at")
+    private Instant lastActivityAt = Instant.now();
+
     protected Room() {
         // for JPA
     }
@@ -51,6 +62,16 @@ public class Room {
         this.hostUserId = hostUserId;
         this.status = Status.LOBBY;
         this.createdAt = Instant.now();
+        this.lastActivityAt = this.createdAt;
+    }
+
+    /** Marks the room as active right now. */
+    public void touch() {
+        this.lastActivityAt = Instant.now();
+    }
+
+    public Instant getLastActivityAt() {
+        return lastActivityAt == null ? createdAt : lastActivityAt;
     }
 
     public Long getId() {
