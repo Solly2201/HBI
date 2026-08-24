@@ -1,29 +1,35 @@
-# Hungry But Indecisive?
+# HBI — Hungry But Indecisive
 
-**HBI** is a real-time collaborative food decision-making application designed to help groups decide what to eat without the usual back-and-forth.
+**HBI** is a real-time collaborative decision-making application that helps a group
+decide what to eat without the usual back-and-forth.
 
-Users join a shared room, select cuisines, rate food items, and receive a synchronized ranked list of the group's top choices.
+Users create or join a shared room, pick cuisines together, rate the options on a
+slider, and the group's ratings are aggregated into a single synchronized ranked
+result that everyone sees at the same time.
 
-The project contains two client implementations:
+The goal is to turn an otherwise unstructured group decision into a short,
+collaborative, game-like process.
 
-- **Web** - HTML, CSS, JavaScript, Node.js, Express.js and Socket.IO
-- **Android** - Native Android using Java/XML with Firebase
+## The three implementations
 
-## Features
+This repository holds **three independent implementations of the same product**, built
+on deliberately different architectures:
 
-- Create or join a shared room
-- Real-time multiplayer collaboration
-- Unique room IDs for joining sessions
-- Collaborative cuisine selection
-- Food-item rating using a slider
-- Synchronized session state
-- Player/lobby tracking
-- Aggregation of ratings across participants
-- Ranked final food results
-- Play-again flow
-- Android mobile application
+| | Implementation | Stack | Directory |
+|---|---|---|---|
+| 1 | **HBI Web** | HTML/CSS/JS + Node.js + Express + Socket.IO | [`web/`](web/) |
+| 2 | **HBI Mobile** | Native Android (Java/XML) + Firebase | [`mobile/`](mobile/) |
+| 3 | **HBI Cloud** | React/Vite + Spring Boot microservices + Kafka + Docker | [`cloud/`](cloud/) |
 
-## How It Works
+Web and Mobile are self-contained client applications. Cloud is a separate
+cloud-native rebuild — it reuses HBI's business logic, cuisine vocabulary, food imagery
+and branding, but shares no code with the other two and does not depend on them.
+
+One difference is worth stating up front, because it changes what the app decides:
+**Web and Mobile rate individual food items**, while **Cloud rates restaurants**,
+scoring them against the group's cuisine, budget and distance preferences.
+
+## Shared flow
 
 ```text
 Create / Join Room
@@ -32,240 +38,327 @@ Create / Join Room
         ↓
    Select Cuisines
         ↓
-   Select Food Items
+  Select / Shortlist
         ↓
-    Rate Items
+      Rate
         ↓
  Aggregate Group Ratings
         ↓
-   Rank Food Items
-        ↓
-   Display Results
+   Ranked Results
 ```
 
-The goal is to turn an otherwise unstructured group decision into a short, collaborative game-like process.
+## Features
 
-## Project Architecture
+- Create or join a shared room with a unique room ID
+- Real-time multiplayer collaboration and synchronized session state
+- Collaborative cuisine selection
+- Slider-based rating
+- Player / lobby tracking
+- Aggregation of ratings across all participants
+- Ranked final results
+- Play-again flow
 
-### Web
+---
 
-The web application uses a client-server architecture with Socket.IO providing real-time communication.
+# Implementations
+
+## HBI Web
+
+The original implementation: a client-server web app where the Node.js server owns all
+room state and Socket.IO keeps every connected client in sync.
 
 ```mermaid
 flowchart LR
-    A[Users] --> B[Web Client]
+    A[Users] --> B[Browser Client]
     B <--> C[Socket.IO]
     C <--> D[Node.js + Express Server]
-    D --> E[Active Room / Session State]
+    D --> E[In-memory Room / Session State]
 ```
 
-**Client**
-- HTML5
-- CSS
-- JavaScript
+- **Client** — HTML5, CSS, vanilla JavaScript
+- **Server** — Node.js with Express
+- **Real-time** — Socket.IO, with clients joined into per-room channels
+- **State** — held in memory in the server process; no database
 
-**Server**
-- Node.js
-- Express.js
+`server.js` manages rooms, players, game flow and result aggregation, emitting events
+such as room creation, joins, cuisine submission and rating submission. Rooms support
+up to 8 players.
 
-**Real-time communication**
-- Socket.IO
+## HBI Mobile
 
-The server manages room state, players, game flow and result aggregation while Socket.IO synchronizes events between connected clients.
-
-### Android
-
-The Android application provides the same HBI flow through a native mobile interface.
+A native Android client providing the same HBI flow, with Firebase as its backend
+rather than a server of its own.
 
 ```mermaid
 flowchart LR
     A[Android App] --> B[Java Fragments]
     B --> C[XML Layouts]
-    B --> D[Firebase]
-    B --> E[Navigation Component]
+    B --> D[Navigation Component]
+    B --> E[Firebase Auth]
+    B --> F[Cloud Firestore]
 ```
 
-The Android implementation is organized around fragments for the main stages of the HBI flow:
+- **Android** — Java with XML layouts
+- **Firebase Authentication** — anonymous sign-in
+- **Cloud Firestore** — room and rating documents, with snapshot listeners providing
+  the real-time updates
+- **Jetpack Navigation** — `nav_graph.xml` drives movement between fragments
+- **Gradle** (Kotlin DSL) for the build
+
+The app is organized around one fragment per stage of the flow:
 
 ```text
-Home
-  ↓
-Waiting
-  ↓
-Cuisine Selection
-  ↓
-Food Rating
-  ↓
-Results
+Home → Waiting → Cuisine Selection → Food Rating → Results
 ```
 
-## Technology Stack
+## HBI Cloud
 
-| Area | Web | Android |
+A cloud-native rebuild of HBI as a set of Spring Boot microservices behind an API
+gateway, communicating over REST and Apache Kafka, with real-time updates pushed to
+clients over STOMP WebSockets.
+
+**Five Spring Boot services** — four domain services plus the gateway:
+
+| Service | Responsibility | Database |
 |---|---|---|
-| UI | HTML, CSS, JavaScript | Java, XML |
-| Application logic | Node.js, Express.js | Java |
-| Real-time / backend data | Socket.IO + server session state | Firebase |
-| Navigation | Client-side application flow | Android Navigation Component |
-| Build / dependencies | npm | Gradle |
+| **API Gateway** | Single entry point, JWT verification, routing, WebSocket upgrade auth | — |
+| **User Service** | Registration, login, BCrypt password hashing, JWT issuing | `user_db` |
+| **Room Service** | Room lifecycle, membership, room state | `room_db` |
+| **Restaurant Service** | Restaurant catalogue, cuisine/budget/distance search | `restaurant_db` |
+| **Rating Service** | Preferences, ratings, recommendation scoring **and group decision logic** | `rating_db` |
 
-## Repository Structure
+There is no separate decision service — recommendation scoring and decision
+finalization both live in the Rating Service (`BlendService`, `RecommendationEngine`).
+
+- **Frontend** — React with Vite, served by nginx
+- **Spring Cloud Gateway** for routing and JWT verification at the edge
+- **PostgreSQL 16**, one instance per service (database-per-service)
+- **Apache Kafka** for event-driven communication between services
+- **STOMP over WebSocket** for pushing live updates to clients
+- **JWT (HS256)** authentication, verified at the gateway and in each service
+- **Docker Compose** for the whole stack
+
+### Architecture
 
 ```text
-hbi-unified/
-├── web/
-│   ├── public/
-│   │   ├── css/
-│   │   ├── images/
-│   │   └── js/
-│   ├── package.json
-│   ├── package-lock.json
-│   └── server.js
-│
-├── mobile/
-│   ├── app/
-│   │   ├── src/
-│   │   │   ├── androidTest/
-│   │   │   ├── main/
-│   │   │   │   ├── java/
-│   │   │   │   └── res/
-│   │   │   └── test/
-│   │   └── build.gradle.kts
-│   ├── gradle/
-│   ├── build.gradle.kts
-│   ├── gradle.properties
-│   ├── gradlew
-│   └── settings.gradle.kts
-│
-├── .gitignore
-└── README.md
+                     React / Vite Frontend (nginx)
+                                 |
+                                 v
+                         API Gateway  :8080
+                   (JWT verification, routing)
+                                 |
+        +------------------+-----+------------+------------------+
+        |                  |                  |                 |
+        v                  v                  v                 v
+  User Service        Room Service     Restaurant Service   Rating Service
+     :8081               :8082              :8083              :8084
+        |                  |                  |                 |
+        v                  v                  v                 v
+    user_db            room_db          restaurant_db        rating_db
+
+  Rating Service also calls Room Service and Restaurant Service over REST
+  when it scores a room's shortlist.
+
+                             Apache Kafka
+  hbi.room-events   published by Room Service    -> consumed by Rating Service
+  hbi.ratings       published by Rating Service  -> consumed by Rating Service
+                                                    and Room Service
+  hbi.room-events.DLT / hbi.ratings.DLT   dead-letter topics
+
+  Events: USER_JOINED, RATING_SUBMITTED, RECOMMENDATIONS_GENERATED,
+          DECISION_FINALIZED, ROOM_STATE_CHANGED
+
+                       STOMP WebSocket (via gateway)
+             Rating Service -> subscribed clients in the room
 ```
 
-## Running the Web Application
+### Cloud engineering
 
-### Requirements
+- **Dockerized services** — 11 containers via Docker Compose
+- **Database-per-service** — four independent PostgreSQL instances, no shared schema
+- **Kafka event-driven communication** between Room and Rating services
+- **WebSocket real-time updates** over STOMP, token-authenticated at the gateway
+- **JWT authentication** — HS256, secret supplied from the environment; every service
+  that needs it refuses to start without one
+- **Kafka retry / DLT handling** — bounded retries, then the record is parked on
+  `<topic>.DLT` and the consumer moves on, so one poison message cannot stall a
+  partition
+- **Health checks** on all 11 containers, with dependency ordering on startup
+- **Automated tests** — smoke, functional, regression, Kafka poison-message and load
+  suites under [`cloud/benchmarks/`](cloud/benchmarks/) and
+  [`cloud/scripts/`](cloud/scripts/)
+- **Deployment configuration** — a documented single-VM Docker Compose deployment
+  (AWS `t3.medium` or equivalent, 2 vCPU / 4 GB), with TLS via a reverse proxy and an
+  optional swap to managed Postgres such as RDS. Deployment-ready and documented; not
+  a live production deployment. No Kubernetes is used or required.
 
-- Node.js
-- npm
+---
 
-### Setup
+## Testing & Performance
+
+All figures below are **measured local benchmark results** from Docker Compose on a
+single development machine. They are not AWS production numbers.
+
+**Test suites**
+
+| Suite | Result |
+|---|---|
+| Smoke tests | **54 / 54** passing |
+| Functional tests | **70 / 72** before hardening → **72 / 72** after |
+| Regression tests | **19 / 19** passing |
+| Kafka poison-message tests | **6 / 6** passing |
+
+**Measured performance**
+
+| Metric | Result |
+|---|---|
+| Concurrent virtual users sustained | **100 VUs at 0 % errors** |
+| Peak measured throughput | **~3,500 req/s** (3,498 on `GET /api/restaurants` at 100 VUs, 0 % errors) |
+| Real-time event propagation | **12–40 ms average** end-to-end (REST → Kafka → STOMP → client) |
+| Kafka events processed during testing | **322,486** |
+| Container restarts / OOM-kills during load campaign | **0 / 0** |
+
+**Honest limits.** 100 VUs is the validated ceiling on this hardware — a 250-VU run
+showed the onset of failure (12.2 % login errors) and 500 VUs collapsed. Login
+throughput is deliberately flat at ~110 req/s because BCrypt hashing is the dominant
+cost, which makes `user-service` the CPU bottleneck. Horizontal scaling has **not**
+been benchmarked, and the WebSocket layer is single-instance (Spring `SimpleBroker`).
+
+Full methodology, per-endpoint tables and resource sampling are in
+[`cloud/TESTING.md`](cloud/TESTING.md); the engineering log and bug write-ups are in
+[`cloud/PROJECT_STATUS.md`](cloud/PROJECT_STATUS.md).
+
+---
+
+## Running the implementations
+
+### HBI Cloud
+
+Requires Docker and the Compose plugin.
+
+```bash
+cd cloud
+cp .env.example .env      # then set JWT_SECRET (at least 32 characters)
+docker compose up --build
+```
+
+The frontend is then available at **http://localhost:5173**, with the API gateway on
+port 8080.
+
+Further documentation:
+
+- [`cloud/README.md`](cloud/README.md) — architecture, API reference, Kafka events
+- [`cloud/DEPLOYMENT.md`](cloud/DEPLOYMENT.md) — deploying to a cloud VM
+- [`cloud/TESTING.md`](cloud/TESTING.md) — full test and benchmark results
+- [`cloud/PROJECT_STATUS.md`](cloud/PROJECT_STATUS.md) — engineering log and status
+
+### HBI Web
+
+Requires Node.js and npm.
 
 ```bash
 cd web
 npm install
-```
-
-### Start
-
-```bash
 node server.js
 ```
 
-The server starts on the port configured by the application.
+Then open the corresponding localhost address in a browser.
 
-Open the corresponding localhost address in a browser.
+### HBI Mobile
 
-## Running the Android Application
+Requires Android Studio, the Android SDK, a compatible JDK, and a Firebase project.
 
-### Requirements
+Open the [`mobile/`](mobile/) directory directly in Android Studio, which will
+recognize it as the Gradle project.
 
-- Android Studio
-- Android SDK
-- JDK compatible with the project's Gradle/Android configuration
-- Firebase project configuration
-
-Open the `mobile/` directory directly in Android Studio.
-
-Android Studio will recognize it as the Gradle project.
-
-### Firebase Configuration
-
-`google-services.json` is intentionally excluded from Git.
-
-Before building the Android application, obtain the Firebase configuration for the project and place it at:
+**Firebase configuration.** `google-services.json` is intentionally excluded from Git.
+Obtain the Firebase configuration for the project and place it at:
 
 ```text
 mobile/app/google-services.json
 ```
 
-Then sync the Gradle project in Android Studio and build/run the application.
+Then sync Gradle and build. Do **not** commit `google-services.json`.
 
-Do **not** commit `google-services.json` to the repository.
+---
 
-## Android Code Organization
-
-The main application code is organized under:
+## Repository structure
 
 ```text
-mobile/app/src/main/java/com/example/hbi/
-├── MainActivity.java
-├── HomeFragment.java
-├── WaitingFragment.java
-├── CuisineFragment.java
-├── RatingFragment.java
-├── ResultsFragment.java
-│
-├── adapter/
-│   ├── PlayerAdapter.java
-│   └── ResultAdapter.java
-│
-└── model/
-    ├── Player.java
-    └── Result.java
+HBI/
+├── web/       # Socket.IO web implementation
+├── mobile/    # Android implementation
+└── cloud/     # Spring Boot microservices implementation
 ```
 
-XML layouts define the corresponding application screens and list items, while `nav_graph.xml` defines navigation between the main fragments.
-
-## Web Code Organization
-
-The web implementation is organized around:
+<details>
+<summary>Detailed layout</summary>
 
 ```text
-web/
-├── public/
-│   ├── css/
-│   │   └── style.css
-│   ├── images/
-│   ├── index.html
-│   └── js/
-│       └── app.js
+HBI/
+├── web/
+│   ├── public/
+│   │   ├── css/style.css
+│   │   ├── images/
+│   │   ├── js/app.js
+│   │   └── index.html
+│   ├── package.json
+│   └── server.js
 │
-├── server.js
-├── package.json
-└── package-lock.json
+├── mobile/
+│   ├── app/
+│   │   ├── src/main/java/com/example/hbi/
+│   │   │   ├── MainActivity.java
+│   │   │   ├── HomeFragment.java
+│   │   │   ├── WaitingFragment.java
+│   │   │   ├── CuisineFragment.java
+│   │   │   ├── RatingFragment.java
+│   │   │   ├── ResultsFragment.java
+│   │   │   ├── adapter/    # PlayerAdapter, ResultAdapter
+│   │   │   └── model/      # Player, Result
+│   │   ├── src/main/res/   # layouts, navigation, values
+│   │   └── build.gradle.kts
+│   ├── gradle/
+│   └── settings.gradle.kts
+│
+├── cloud/
+│   ├── api-gateway/
+│   ├── user-service/
+│   ├── room-service/
+│   ├── restaurant-service/
+│   ├── rating-service/
+│   ├── frontend/           # React + Vite
+│   ├── benchmarks/         # load, functional, regression, Kafka suites
+│   ├── scripts/            # smoke tests
+│   ├── docker-compose.yml
+│   ├── README.md
+│   ├── DEPLOYMENT.md
+│   ├── TESTING.md
+│   └── PROJECT_STATUS.md
+│
+├── .gitignore
+└── README.md
 ```
 
-`server.js` handles the server-side application and multiplayer state, while the files under `public/` provide the browser interface.
+</details>
 
-## Results
+## Future scope
 
-The implemented HBI workflow supports the complete decision process from lobby creation through collaborative selection, rating aggregation and final result display.
-
-The original project was designed around rooms supporting multiple concurrent users, with the documented web implementation supporting up to 8 users per room.
-
-## Future Scope
-
-Possible extensions include:
-
-- Persistent database integration for global sessions and data
-- Food delivery or restaurant integration
 - Timers and additional host controls
-- Filtering results by factors such as price or distance
+- Richer filtering and result explanations
 - Further improvements to the mobile experience
+- Moving secrets to a managed store and adding login rate limiting for Cloud
+- Multi-instance WebSocket support (external STOMP broker) for Cloud
 
-## Project Documentation
+Some earlier goals have since been realized in HBI Cloud, including persistent
+database integration, restaurant-level decisions, and filtering by price and distance.
 
-The project was developed and documented through Software Engineering and Mobile Application Development work.
+## Project documentation
 
-The documentation covers:
-- Problem statement and research gaps
-- Project scope
-- System architecture
-- UML and data-flow diagrams
-- Web implementation
-- Android implementation
-- User interface
-- Results and future scope
+The project was developed and documented through Software Engineering and Mobile
+Application Development work, covering the problem statement and research gaps,
+project scope, system architecture, UML and data-flow diagrams, the web and Android
+implementations, user interface, results and future scope.
 
 ## Author
 
@@ -275,4 +368,5 @@ B023
 
 ## License
 
-This project was developed as an academic project. No open-source license is currently specified.
+This project was developed as an academic project. No open-source license is currently
+specified.
