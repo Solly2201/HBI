@@ -1,0 +1,75 @@
+server:
+  port: ${SERVER_PORT:8084}
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: rating-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5436/rating_db}
+    username: ${DATABASE_USERNAME:hbi}
+    password: ${DATABASE_PASSWORD:hbi}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: ${KAFKA_GROUP_ID:hbi-rating-service}
+      auto-offset-reset: latest
+      # ErrorHandlingDeserializer wraps the real deserializers so a record that
+      # cannot be parsed becomes a handled error (bounded retry, then the dead
+      # letter topic) instead of an infinite redelivery loop pinning the offset.
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        # Events are plain JSON maps produced by another service, so the payload
+        # type is fixed here rather than trusted from a header.
+        spring.json.value.default.type: java.util.LinkedHashMap
+        spring.json.use.type.headers: false
+        spring.json.trusted.packages: "java.util"
+
+hbi:
+  jwt:
+    secret: ${JWT_SECRET}
+  kafka:
+    ratings-topic: ${KAFKA_RATINGS_TOPIC:hbi.ratings}
+    room-events-topic: ${KAFKA_ROOM_EVENTS_TOPIC:hbi.room-events}
+    group-id: ${KAFKA_GROUP_ID:hbi-rating-service}
+  services:
+    room-service-url: ${ROOM_SERVICE_URL:http://localhost:8082}
+    restaurant-service-url: ${RESTAURANT_SERVICE_URL:http://localhost:8083}
+  blend:
+    # How many restaurants a room rates. Kept small so a blend stays quick.
+    shortlist-size: ${BLEND_SHORTLIST_SIZE:8}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: HBI Cloud - Rating / Decision Service
+    responsibility: Preferences, ratings, recommendation scoring, final decision, WebSocket hub
+
+logging:
+  level:
+    root: INFO
+    io.hbi.cloud.rating: INFO

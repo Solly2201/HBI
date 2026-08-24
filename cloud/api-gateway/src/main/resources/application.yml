@@ -1,0 +1,101 @@
+server:
+  port: ${SERVER_PORT:8080}
+
+spring:
+  application:
+    name: api-gateway
+  cloud:
+    gateway:
+      # The first request after an idle period used to hang ~30 s: the Netty
+      # pool would reuse a keep-alive connection that the Docker network had
+      # silently dropped, and wait out a long TCP timeout before giving up.
+      # Closing pooled connections after 30 s idle keeps every reused
+      # connection fresh, and the response timeout is a hard backstop so no
+      # proxied request can hang longer than 15 s.
+      httpclient:
+        connect-timeout: 3000
+        response-timeout: 15s
+        pool:
+          max-idle-time: 30s
+          eviction-interval: 30s
+      # Only needed for `npm run dev`, where the Vite dev server is on a
+      # different origin. In Docker the frontend proxies to the gateway, so
+      # every request is already same-origin.
+      globalcors:
+        cors-configurations:
+          "[/**]":
+            allowedOriginPatterns: ${CORS_ALLOWED_ORIGINS:http://localhost:5173,http://localhost:4173}
+            allowedMethods: [GET, POST, PUT, DELETE, OPTIONS]
+            allowedHeaders: "*"
+            allowCredentials: true
+      routes:
+        # ------------------------------------------------------------------
+        # Rating / Decision service.
+        #
+        # These sit under /api/rooms/** too, so they are declared with a lower
+        # `order` than the room service route and are matched first.
+        # ------------------------------------------------------------------
+        - id: rating-service-room-scoped
+          uri: ${RATING_SERVICE_URL:http://localhost:8084}
+          order: 0
+          predicates:
+            - Path=/api/rooms/*/preferences,/api/rooms/*/ratings,/api/rooms/*/recommendations,/api/rooms/*/finalize,/api/rooms/*/decision,/api/rooms/*/candidates
+
+        - id: rating-service
+          uri: ${RATING_SERVICE_URL:http://localhost:8084}
+          order: 0
+          predicates:
+            - Path=/api/ratings/**
+
+        # WebSocket handshake + SockJS fallback transports.
+        - id: rating-service-websocket
+          uri: ${RATING_SERVICE_URL:http://localhost:8084}
+          order: 0
+          predicates:
+            - Path=/ws/**
+
+        # ------------------------------------------------------------------
+        # Everything else routes by prefix.
+        # ------------------------------------------------------------------
+        - id: room-service
+          uri: ${ROOM_SERVICE_URL:http://localhost:8082}
+          order: 10
+          predicates:
+            - Path=/api/rooms/**
+
+        - id: user-service
+          uri: ${USER_SERVICE_URL:http://localhost:8081}
+          order: 10
+          predicates:
+            - Path=/api/users/**
+
+        - id: restaurant-service
+          uri: ${RESTAURANT_SERVICE_URL:http://localhost:8083}
+          order: 10
+          predicates:
+            - Path=/api/restaurants/**
+
+hbi:
+  jwt:
+    secret: ${JWT_SECRET}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics,gateway
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: HBI Cloud - API Gateway
+    responsibility: Single entry point, JWT verification, routing to microservices
+
+logging:
+  level:
+    root: INFO

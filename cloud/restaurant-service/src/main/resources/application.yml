@@ -1,0 +1,37 @@
+server:
+  port: ${SERVER_PORT:8083}
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: restaurant-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5435/restaurant_db}
+    username: ${DATABASE_USERNAME:hbi}
+    password: ${DATABASE_PASSWORD:hbi}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: HBI Cloud - Restaurant Service
+    responsibility: Restaurant catalogue, cuisine/budget/distance filtering
+
+logging:
+  level:
+    root: INFO

@@ -1,0 +1,19 @@
+# Overlay used only by the scaling test.
+#
+# A service cannot be replicated while it publishes a fixed host port - the
+# second replica would collide on it. Dropping the published ports lets Compose
+# start N replicas that the gateway reaches over the Docker network by service
+# name. Nothing about the application changes.
+#
+#   docker compose -f docker-compose.yml -f benchmarks/docker-compose.scale.yml \
+#     up -d --scale restaurant-service=3
+
+services:
+  restaurant-service:
+    ports: !reset []
+  user-service:
+    ports: !reset []
+  room-service:
+    ports: !reset []
+  rating-service:
+    ports: !reset []

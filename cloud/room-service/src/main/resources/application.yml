@@ -1,0 +1,63 @@
+server:
+  port: ${SERVER_PORT:8082}
+  error:
+    include-message: always
+
+spring:
+  application:
+    name: room-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5434/room_db}
+    username: ${DATABASE_USERNAME:hbi}
+    password: ${DATABASE_PASSWORD:hbi}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:29092}
+    producer:
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+      properties:
+        spring.json.add.type.headers: false
+    consumer:
+      group-id: ${KAFKA_CONSUMER_GROUP_ID:hbi-room-service}
+      auto-offset-reset: latest
+      # Same poison-message protection as the rating service: a record that
+      # cannot be deserialized becomes a handled error, not an infinite retry.
+      key-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      value-deserializer: org.springframework.kafka.support.serializer.ErrorHandlingDeserializer
+      properties:
+        spring.deserializer.key.delegate.class: org.apache.kafka.common.serialization.StringDeserializer
+        spring.deserializer.value.delegate.class: org.springframework.kafka.support.serializer.JsonDeserializer
+        spring.json.value.default.type: java.util.LinkedHashMap
+        spring.json.use.type.headers: false
+        spring.json.trusted.packages: "java.util"
+
+hbi:
+  kafka:
+    room-events-topic: ${KAFKA_ROOM_EVENTS_TOPIC:hbi.room-events}
+    ratings-topic: ${KAFKA_RATINGS_TOPIC:hbi.ratings}
+    consumer-group-id: ${KAFKA_CONSUMER_GROUP_ID:hbi-room-service}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: HBI Cloud - Room Service
+    responsibility: Room creation/joining, membership, room state
+
+logging:
+  level:
+    root: INFO

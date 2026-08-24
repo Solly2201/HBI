@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+    <modelVersion>4.0.0</modelVersion>
+
+    <groupId>io.hbi.cloud</groupId>
+    <artifactId>hbi-cloud</artifactId>
+    <version>1.0.0</version>
+    <packaging>pom</packaging>
+    <name>HBI Cloud</name>
+    <description>Aggregator for the HBI Cloud microservices implementation</description>
+
+    <!--
+      Convenience aggregator so the whole backend can be built with a single
+      `mvn -f cloud/pom.xml package`. Each service module is intentionally
+      standalone (it inherits from spring-boot-starter-parent, not from this
+      POM) so that its Dockerfile can build it in isolation.
+    -->
+    <modules>
+        <module>api-gateway</module>
+        <module>user-service</module>
+        <module>room-service</module>
+        <module>restaurant-service</module>
+        <module>rating-service</module>
+    </modules>
+</project>

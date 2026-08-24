@@ -1,0 +1,220 @@
+# HBI Cloud - the complete stack.
+#
+#   cp .env.example .env
+#   docker compose up --build
+#   open http://localhost:5173
+#
+# Services talk to each other by Docker service name on the hbi network. The
+# only ports published to the host are the ones a person or a debugging tool
+# actually needs.
+
+name: hbi-cloud
+
+x-db-env: &db-env
+  POSTGRES_USER: ${DATABASE_USERNAME:-hbi}
+  POSTGRES_PASSWORD: ${DATABASE_PASSWORD:-hbi}
+
+x-db-healthcheck: &db-healthcheck
+  test: ["CMD-SHELL", "pg_isready -U ${DATABASE_USERNAME:-hbi}"]
+  interval: 5s
+  timeout: 5s
+  retries: 20
+
+x-service-health: &service-health
+  interval: 10s
+  timeout: 5s
+  retries: 30
+  start_period: 60s
+
+services:
+  # ------------------------------------------------------------ databases
+  # Database per service: four separate Postgres instances, so no service can
+  # reach another's tables even by accident.
+
+  user-db:
+    image: postgres:16-alpine
+    environment:
+      <<: *db-env
+      POSTGRES_DB: user_db
+    volumes: [user-db-data:/var/lib/postgresql/data]
+    ports: ["5433:5432"]
+    healthcheck: *db-healthcheck
+    networks: [hbi]
+
+  room-db:
+    image: postgres:16-alpine
+    environment:
+      <<: *db-env
+      POSTGRES_DB: room_db
+    volumes: [room-db-data:/var/lib/postgresql/data]
+    ports: ["5434:5432"]
+    healthcheck: *db-healthcheck
+    networks: [hbi]
+
+  restaurant-db:
+    image: postgres:16-alpine
+    environment:
+      <<: *db-env
+      POSTGRES_DB: restaurant_db
+    volumes: [restaurant-db-data:/var/lib/postgresql/data]
+    ports: ["5435:5432"]
+    healthcheck: *db-healthcheck
+    networks: [hbi]
+
+  rating-db:
+    image: postgres:16-alpine
+    environment:
+      <<: *db-env
+      POSTGRES_DB: rating_db
+    volumes: [rating-db-data:/var/lib/postgresql/data]
+    ports: ["5436:5432"]
+    healthcheck: *db-healthcheck
+    networks: [hbi]
+
+  # ---------------------------------------------------------------- kafka
+  # Single broker in KRaft mode - no ZooKeeper, and enough for one blend.
+
+  kafka:
+    image: apache/kafka:3.9.0
+    environment:
+      KAFKA_NODE_ID: 1
+      KAFKA_PROCESS_ROLES: broker,controller
+      KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka:9093
+      KAFKA_LISTENERS: INTERNAL://kafka:9092,CONTROLLER://kafka:9093,EXTERNAL://0.0.0.0:29092
+      KAFKA_ADVERTISED_LISTENERS: INTERNAL://kafka:9092,EXTERNAL://localhost:29092
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: INTERNAL:PLAINTEXT,CONTROLLER:PLAINTEXT,EXTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: INTERNAL
+      KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: 0
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "true"
+      CLUSTER_ID: hbi-cloud-kraft-01
+    ports: ["29092:29092"]
+    healthcheck:
+      test: ["CMD-SHELL", "/opt/kafka/bin/kafka-topics.sh --bootstrap-server kafka:9092 --list || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 20
+      start_period: 20s
+    networks: [hbi]
+
+  # ------------------------------------------------------------- services
+
+  user-service:
+    build: ./user-service
+    environment:
+      SERVER_PORT: 8081
+      DATABASE_URL: jdbc:postgresql://user-db:5432/user_db
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-hbi}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hbi}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env}
+      JWT_TTL_MINUTES: ${JWT_TTL_MINUTES:-720}
+    depends_on:
+      user-db: {condition: service_healthy}
+    ports: ["8081:8081"]
+    healthcheck:
+      <<: *service-health
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8081/actuator/health | grep -q UP"]
+    networks: [hbi]
+
+  room-service:
+    build: ./room-service
+    environment:
+      SERVER_PORT: 8082
+      DATABASE_URL: jdbc:postgresql://room-db:5432/room_db
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-hbi}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hbi}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_ROOM_EVENTS_TOPIC: ${KAFKA_ROOM_EVENTS_TOPIC:-hbi.room-events}
+      KAFKA_RATINGS_TOPIC: ${KAFKA_RATINGS_TOPIC:-hbi.ratings}
+    depends_on:
+      room-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+    ports: ["8082:8082"]
+    healthcheck:
+      <<: *service-health
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8082/actuator/health | grep -q UP"]
+    networks: [hbi]
+
+  restaurant-service:
+    build: ./restaurant-service
+    environment:
+      SERVER_PORT: 8083
+      DATABASE_URL: jdbc:postgresql://restaurant-db:5432/restaurant_db
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-hbi}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hbi}
+    depends_on:
+      restaurant-db: {condition: service_healthy}
+    ports: ["8083:8083"]
+    healthcheck:
+      <<: *service-health
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8083/actuator/health | grep -q UP"]
+    networks: [hbi]
+
+  rating-service:
+    build: ./rating-service
+    environment:
+      SERVER_PORT: 8084
+      DATABASE_URL: jdbc:postgresql://rating-db:5432/rating_db
+      DATABASE_USERNAME: ${DATABASE_USERNAME:-hbi}
+      DATABASE_PASSWORD: ${DATABASE_PASSWORD:-hbi}
+      KAFKA_BOOTSTRAP_SERVERS: kafka:9092
+      KAFKA_RATINGS_TOPIC: ${KAFKA_RATINGS_TOPIC:-hbi.ratings}
+      KAFKA_ROOM_EVENTS_TOPIC: ${KAFKA_ROOM_EVENTS_TOPIC:-hbi.room-events}
+      KAFKA_GROUP_ID: ${KAFKA_GROUP_ID:-hbi-rating-service}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env}
+      ROOM_SERVICE_URL: http://room-service:8082
+      RESTAURANT_SERVICE_URL: http://restaurant-service:8083
+      BLEND_SHORTLIST_SIZE: ${BLEND_SHORTLIST_SIZE:-8}
+    depends_on:
+      rating-db: {condition: service_healthy}
+      kafka: {condition: service_healthy}
+      room-service: {condition: service_started}
+      restaurant-service: {condition: service_started}
+    ports: ["8084:8084"]
+    healthcheck:
+      <<: *service-health
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8084/actuator/health | grep -q UP"]
+    networks: [hbi]
+
+  api-gateway:
+    build: ./api-gateway
+    environment:
+      SERVER_PORT: 8080
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET must be set - copy .env.example to .env}
+      USER_SERVICE_URL: http://user-service:8081
+      ROOM_SERVICE_URL: http://room-service:8082
+      RESTAURANT_SERVICE_URL: http://restaurant-service:8083
+      RATING_SERVICE_URL: http://rating-service:8084
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://localhost:4173}
+    depends_on:
+      user-service: {condition: service_started}
+      room-service: {condition: service_started}
+      restaurant-service: {condition: service_started}
+      rating-service: {condition: service_started}
+    ports: ["8080:8080"]
+    healthcheck:
+      <<: *service-health
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+    networks: [hbi]
+
+  # ------------------------------------------------------------- frontend
+
+  frontend:
+    build: ./frontend
+    depends_on:
+      api-gateway: {condition: service_started}
+    ports: ["5173:80"]
+    networks: [hbi]
+
+volumes:
+  user-db-data:
+  room-db-data:
+  restaurant-db-data:
+  rating-db-data:
+
+networks:
+  hbi:
+    driver: bridge

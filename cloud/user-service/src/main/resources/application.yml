@@ -1,0 +1,45 @@
+server:
+  port: ${SERVER_PORT:8081}
+  error:
+    # Surface the "Invalid email or password."-style messages to the frontend.
+    include-message: always
+
+spring:
+  application:
+    name: user-service
+  datasource:
+    url: ${DATABASE_URL:jdbc:postgresql://localhost:5433/user_db}
+    username: ${DATABASE_USERNAME:hbi}
+    password: ${DATABASE_PASSWORD:hbi}
+  jpa:
+    hibernate:
+      ddl-auto: update
+    open-in-view: false
+    properties:
+      hibernate.jdbc.time_zone: UTC
+
+hbi:
+  jwt:
+    secret: ${JWT_SECRET}
+    ttl-minutes: ${JWT_TTL_MINUTES:720}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
+  endpoint:
+    health:
+      show-details: always
+  info:
+    env:
+      enabled: true
+
+info:
+  app:
+    name: HBI Cloud - User Service
+    responsibility: Registration, login, JWT issuing, user profiles
+
+logging:
+  level:
+    root: INFO
