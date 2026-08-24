@@ -68,7 +68,7 @@ export default function Preferences({ roomCode, members, isHost, onStartRating }
       <div className="card">
         <div className="card-head">
           <div>
-            <h2 style={{ margin: 0 }}>Select cuisines</h2>
+            <h2 style={{ margin: 0 }}>SELECT CUISINES</h2>
             <p className="muted" style={{ margin: '4px 0 0' }}>
               Pick anything you fancy, or none at all if you are easy either way.
             </p>
@@ -143,7 +143,7 @@ export default function Preferences({ roomCode, members, isHost, onStartRating }
           )}
           {isHost ? (
             <button className="btn btn-green" onClick={onStartRating}>
-              Everyone&apos;s in &mdash; start rating
+              Start Rating
             </button>
           ) : (
             <p className="muted" style={{ margin: 0 }}>
@@ -153,7 +153,7 @@ export default function Preferences({ roomCode, members, isHost, onStartRating }
         </div>
       ) : (
         <button className="btn btn-red" onClick={submit} disabled={busy}>
-          {busy ? 'Saving...' : 'Submit choices'}
+          {busy ? 'Saving...' : 'Submit Choices'}
         </button>
       )}
     </div>

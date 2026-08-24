@@ -1,11 +1,14 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
+  ensureSession,
   errorMessage,
   getDecision,
   getMembers,
   getRoom,
+  getToken,
   getUser,
+  joinRoom,
   leaveRoom,
   setRoomStatus,
 } from '../api';
@@ -15,6 +18,56 @@ import Lobby from './Lobby';
 import Preferences from './Preferences';
 import RatingBoard from './RatingBoard';
 import ResultBoard from './ResultBoard';
+
+/**
+ * Someone opened a shared room link without a session yet: ask for a name,
+ * start an anonymous session, join, and carry on. No account, no login.
+ */
+function NameGate({ roomCode, onReady }) {
+  const [name, setName] = useState('');
+  const [error, setError] = useState('');
+  const [busy, setBusy] = useState(false);
+
+  async function enter(e) {
+    e.preventDefault();
+    const trimmed = name.trim();
+    if (!trimmed) return;
+    setError('');
+    setBusy(true);
+    try {
+      await ensureSession(trimmed);
+      await joinRoom(roomCode);
+      onReady();
+    } catch (err) {
+      setError(errorMessage(err, 'Could not join that room.'));
+      setBusy(false);
+    }
+  }
+
+  return (
+    <main className="page">
+      <div className="home stack">
+        <img className="mascot" src="/images/angwy.png" alt="A drawing of a hungry, angry bear." />
+        <h1 className="center home-title">Joining room {roomCode}</h1>
+        <Alert>{error}</Alert>
+        <form className="join-row" onSubmit={enter}>
+          <input
+            className="pill-input"
+            type="text"
+            maxLength={40}
+            placeholder="Your Name"
+            aria-label="Your name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+          />
+          <button className="btn btn-red" type="submit" disabled={busy || !name.trim()}>
+            {busy ? 'Joining...' : 'Join'}
+          </button>
+        </form>
+      </div>
+    </main>
+  );
+}
 
 /**
  * Drives one room through the HBI flow.
@@ -28,6 +81,7 @@ export default function RoomPage() {
   const { code } = useParams();
   const roomCode = (code || '').toUpperCase();
   const navigate = useNavigate();
+  const [hasSession, setHasSession] = useState(() => Boolean(getToken()));
   const me = getUser();
 
   const [room, setRoom] = useState(null);
@@ -51,17 +105,32 @@ export default function RoomPage() {
 
   // Initial load.
   useEffect(() => {
+    if (!hasSession) return undefined;
     let alive = true;
     (async () => {
       try {
-        await refreshRoom();
+        let fresh = await getRoom(roomCode);
+
         // A room that already decided should open straight on the result.
+        let decided = null;
         try {
-          const existing = await getDecision(roomCode);
-          if (alive) setDecision(existing);
+          decided = await getDecision(roomCode);
         } catch {
           // 404 simply means the blend is still running.
         }
+
+        // Opening a shared link with a session but no membership yet: join
+        // quietly, the way HBI Web admitted anyone who knew the room ID.
+        const myId = getUser()?.id;
+        const amIn = (fresh.members || []).some((m) => m.userId === myId && m.active);
+        if (!decided && fresh.status !== 'DECIDED' && !amIn) {
+          fresh = await joinRoom(roomCode);
+        }
+
+        if (!alive) return;
+        setRoom(fresh);
+        setMembers(fresh.members || []);
+        if (decided) setDecision(decided);
       } catch (err) {
         if (alive) setError(errorMessage(err, 'Could not load that room.'));
       } finally {
@@ -71,7 +140,7 @@ export default function RoomPage() {
     return () => {
       alive = false;
     };
-  }, [roomCode, refreshRoom]);
+  }, [roomCode, hasSession]);
 
   const onEvent = useCallback(
     (event) => {
@@ -100,7 +169,20 @@ export default function RoomPage() {
     [refreshMembers, refreshRoom]
   );
 
-  const connected = useRoomSocket(roomCode, onEvent);
+  const connected = useRoomSocket(hasSession ? roomCode : null, onEvent);
+
+  // Events are not replayed: anything that happened while the socket was down
+  // (including the moment between page load and the first connect) is missed.
+  // Re-reading the room on every (re)connect closes that gap.
+  useEffect(() => {
+    if (connected) {
+      refreshRoom().catch(() => {});
+    }
+  }, [connected, refreshRoom]);
+
+  if (!hasSession) {
+    return <NameGate roomCode={roomCode} onReady={() => setHasSession(true)} />;
+  }
 
   const isHost = room && me && room.hostUserId === me.id;
 
@@ -140,27 +222,21 @@ export default function RoomPage() {
   // A finished blend wins over whatever status the room service last reported.
   const phase = decision ? 'DECIDED' : room.status;
   const stepName =
-    { LOBBY: 'Lobby', PREFERENCES: 'Preferences', RATING: 'Rate', DECIDED: 'Result' }[phase] ||
-    'Lobby';
+    { LOBBY: 'Room', PREFERENCES: 'Cuisines', RATING: 'Rate', DECIDED: 'Results' }[phase] ||
+    'Room';
 
   return (
     <main className="page">
       <div className="stack">
-        <div className="card-head" style={{ marginBottom: 0 }}>
-          <div>
-            <Steps current={stepName} />
-            <h1 style={{ marginBottom: 4 }}>Room {room.code}</h1>
-            <p className="muted" style={{ margin: 0 }}>
-              {members.filter((m) => m.active).length} of {room.maxMembers} players
-              {connected ? ' - live' : ' - reconnecting...'}
-            </p>
-          </div>
+        <div className="room-head">
+          <Steps current={stepName} />
           <button className="btn btn-pink btn-small" onClick={quit}>
-            Leave room
+            Leave
           </button>
         </div>
 
         <Alert>{error}</Alert>
+        {!connected && <p className="center muted">Reconnecting...</p>}
 
         {phase === 'LOBBY' && (
           <Lobby
@@ -187,8 +263,6 @@ export default function RoomPage() {
             isHost={isHost}
             progress={progress}
             setProgress={setProgress}
-            recommendations={recommendations}
-            setRecommendations={setRecommendations}
             onDecided={(d) => setDecision(d)}
           />
         )}

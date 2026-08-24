@@ -372,3 +372,37 @@ messages interleaved with poison processed normally.
 *Test artefacts from this pass: `benchmarks/regression.mjs`,
 `benchmarks/kafka-poison-test.sh`, k6 JSON summaries under
 `benchmarks/results/post-k6-*.json`.*
+
+---
+
+## UX / session pass (2026-08-24)
+
+A product-experience pass; the architecture above is unchanged.
+
+- **No more login.** The UI now starts an anonymous session
+  (`POST /api/users/session`, public at the gateway) from a display name — the
+  same JWT and identity headers as before, so no service authorization changed.
+  `register`/`login` remain for API use. Sessions live in `sessionStorage`
+  (one player per tab, refresh keeps the room).
+- **Original step-by-step HBI flow restored.** The rating screen shows one
+  candidate at a time (image, dish, restaurant, EAT-O-METER, NEXT; the last
+  card ends on BLEND...), matching HBI Web. The shortlist is never shown as a
+  list during rating. "CLOUD" and all technical labels were removed from the UI.
+- **Two robustness fixes surfaced by the new UX:**
+  1. The room page now re-reads room state whenever the WebSocket (re)connects —
+     events that fired before the first connect (e.g. a very fast join) were
+     previously missed and never replayed.
+  2. The candidate-shortlist freeze race is handled: the losing insert detects
+     the unique-constraint collision and returns the winner's frozen shortlist
+     (`BlendService.candidatesFor` is no longer `@Transactional` so the
+     collision surfaces where it can be caught). The one-at-a-time UX made both
+     players fetch `/candidates` at the same instant, which hit this race
+     reliably.
+- **Verified:** existing smoke suite 54/54 after the changes; a two-player API
+  journey (anonymous sessions → room → cuisines → per-candidate ratings → Kafka
+  auto-decision → DECIDED room rejects joins); and a two-browser Playwright run
+  of the real UI including live lobby sync, refresh-resume mid-blend, the
+  simultaneous shortlist fetch, and a 375 px viewport with no horizontal scroll.
+- **Demo data** stays PostgreSQL-only: edit `restaurant_db` directly (port 5435);
+  `RestaurantSeeder` reseeds only an empty table — see README "Demo restaurant
+  data".

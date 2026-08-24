@@ -42,7 +42,12 @@ export default function Lobby({ room, members, isHost, connected, onStart }) {
       </div>
 
       {isHost ? (
-        <button className="btn btn-red" onClick={onStart}>
+        <button
+          className="btn btn-red"
+          onClick={onStart}
+          disabled={activeCount < 2}
+          title={activeCount < 2 ? 'You need at least one more player.' : undefined}
+        >
           Start Blend
         </button>
       ) : (

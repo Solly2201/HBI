@@ -65,7 +65,7 @@ export default function ResultBoard({
 
       {recommendations.length > 1 && (
         <div className="card">
-          <h3>The full ranking</h3>
+          <h3>YOUR TOP MATCHES</h3>
           <ol className="rank-list">
             {recommendations.map((rec) => (
               <li key={rec.restaurant?.id ?? rec.rank} className={rec.rank === 1 ? 'top' : undefined}>
@@ -89,7 +89,7 @@ export default function ResultBoard({
 
       <div className="button-group center">
         <button className="btn btn-red" onClick={() => navigate('/')}>
-          Play again
+          Play Again
         </button>
       </div>
       {isHost && <p className="center muted">This room is now closed.</p>}

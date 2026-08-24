@@ -18,7 +18,7 @@ export function Loader({ label }) {
 
 /** Where the room is in the HBI flow. */
 export function Steps({ current }) {
-  const steps = ['Lobby', 'Preferences', 'Rate', 'Result'];
+  const steps = ['Room', 'Cuisines', 'Rate', 'Results'];
   return (
     <div className="steps">
       {steps.map((s, i) => (
@@ -27,21 +27,6 @@ export function Steps({ current }) {
           <span className={s === current ? 'on' : undefined}>{s}</span>
         </React.Fragment>
       ))}
-    </div>
-  );
-}
-
-export function Progress({ value, max }) {
-  const pct = max > 0 ? Math.min(100, Math.round((value / max) * 100)) : 0;
-  return (
-    <div
-      className="progress"
-      role="progressbar"
-      aria-valuenow={value}
-      aria-valuemin={0}
-      aria-valuemax={max}
-    >
-      <div style={{ width: `${pct}%` }} />
     </div>
   );
 }

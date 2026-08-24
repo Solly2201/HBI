@@ -122,7 +122,7 @@ clients over STOMP WebSockets.
 | Service | Responsibility | Database |
 |---|---|---|
 | **API Gateway** | Single entry point, JWT verification, routing, WebSocket upgrade auth | — |
-| **User Service** | Registration, login, BCrypt password hashing, JWT issuing | `user_db` |
+| **User Service** | Anonymous player sessions, JWT issuing (registration/login kept for API use) | `user_db` |
 | **Room Service** | Room lifecycle, membership, room state | `room_db` |
 | **Restaurant Service** | Restaurant catalogue, cuisine/budget/distance search | `restaurant_db` |
 | **Rating Service** | Preferences, ratings, recommendation scoring **and group decision logic** | `rating_db` |

@@ -2,10 +2,9 @@
  * HBI Cloud styles.
  *
  * The palette, the Nunito typeface and the fully rounded buttons are taken
- * straight from HBI Web's style.css so the three implementations read as the
- * same product. What is new here is layout: HBI Cloud has real pages, so it
- * gets cards, a sticky header and a responsive grid rather than one centred
- * column.
+ * straight from HBI Web's style.css so the implementations read as the same
+ * product. The layout is a single centred game column: HBI is a party game,
+ * not a dashboard, and every screen should feel like one card on a table.
  */
 
 :root {
@@ -23,7 +22,7 @@
   --border: #f1d9d9;
   --muted: #7a6b6b;
   --shadow: 0 2px 10px rgba(255, 48, 48, 0.08);
-  --maxw: 1040px;
+  --maxw: 720px;
 }
 
 * {
@@ -69,32 +68,27 @@ a {
 
 .app {
   min-height: 100vh;
+  min-height: 100dvh;
   display: flex;
   flex-direction: column;
 }
 
 .navbar {
   background-color: var(--red-color);
-  color: #fff;
   display: flex;
-  justify-content: space-between;
   align-items: center;
-  gap: 16px;
-  padding: 10px 20px;
+  padding: 8px 20px;
   position: sticky;
   top: 0;
   z-index: 20;
 }
 
 .navbar .brand {
-  display: flex;
-  align-items: center;
-  gap: 12px;
   background: none;
   border: none;
   padding: 0;
   cursor: pointer;
-  color: inherit;
+  line-height: 0;
 }
 
 /* Original logo, original proportions - height only, width follows. */
@@ -102,35 +96,6 @@ a {
   height: 64px;
   width: auto;
   display: block;
-}
-
-.navbar .brand span {
-  font-weight: 900;
-  font-size: 1.05rem;
-  letter-spacing: 0.06em;
-}
-
-.navbar .who {
-  display: flex;
-  align-items: center;
-  gap: 12px;
-  font-weight: 700;
-}
-
-.navbar .pill {
-  background: #fff;
-  color: var(--text-color);
-  border-radius: 20px;
-  padding: 8px 16px;
-  font-weight: 900;
-  font-size: 0.95rem;
-  border: none;
-  cursor: pointer;
-  transition: background-color 0.2s;
-}
-
-.navbar .pill:hover {
-  background: rgba(255, 255, 255, 0.75);
 }
 
 main.page {
@@ -151,9 +116,68 @@ main.page {
   text-align: center;
 }
 
+.stack.center {
+  align-items: center;
+}
+
 .muted {
   color: var(--muted);
   font-size: 0.94rem;
+}
+
+/* ------------------------------------------------------------------ home */
+
+.home {
+  align-items: center;
+  text-align: center;
+}
+
+.home-title {
+  margin: 0;
+}
+
+.mascot {
+  width: min(300px, 62vw);
+  height: auto;
+  display: block;
+  margin: 0 auto;
+}
+
+.pill-input {
+  background-color: var(--pink-color);
+  border: 2px solid transparent;
+  padding: 15px 30px;
+  border-radius: 40px;
+  font-family: inherit;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--text-color);
+  text-align: center;
+  width: min(320px, 100%);
+}
+
+.pill-input:focus {
+  outline: none;
+  border-color: var(--red-color);
+}
+
+.pill-input::placeholder {
+  color: var(--text-color);
+  opacity: 0.6;
+}
+
+.pill-input.code {
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+  font-weight: 900;
+}
+
+.join-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: center;
+  flex-wrap: wrap;
 }
 
 /* ----------------------------------------------------------------- cards */
@@ -179,11 +203,34 @@ main.page {
   margin-bottom: 14px;
 }
 
+/* The single centred card the game plays out on. */
+.game-card {
+  background: var(--bg-color);
+  border: 1px solid var(--border);
+  border-radius: 22px;
+  padding: 26px 24px;
+  box-shadow: var(--shadow);
+  width: min(440px, 100%);
+  text-align: center;
+  animation: card-in 0.25s ease;
+}
+
+@keyframes card-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
 /* --------------------------------------------------------------- buttons */
 
 .btn {
   border: none;
-  padding: 14px 26px;
+  padding: 16px 30px;
   border-radius: var(--border-radius);
   font-family: inherit;
   font-size: 1rem;
@@ -254,44 +301,6 @@ main.page {
   font-size: 0.92rem;
 }
 
-.field input[type='text'],
-.field input[type='email'],
-.field input[type='password'] {
-  background-color: var(--pink-color);
-  border: 2px solid transparent;
-  padding: 14px 20px;
-  border-radius: 40px;
-  font-family: inherit;
-  font-size: 1rem;
-  font-weight: 700;
-  color: var(--text-color);
-  width: 100%;
-}
-
-.field input:focus {
-  outline: none;
-  border-color: var(--red-color);
-}
-
-.field input::placeholder {
-  color: var(--text-color);
-  opacity: 0.55;
-  font-weight: 400;
-}
-
-.field input.code {
-  text-align: center;
-  letter-spacing: 0.22em;
-  text-transform: uppercase;
-  font-weight: 900;
-}
-
-.form-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 16px;
-}
-
 /* ---------------------------------------------------------------- alerts */
 
 .alert {
@@ -309,39 +318,6 @@ main.page {
 .alert-info {
   background: #eef7ee;
   color: #2f6b32;
-}
-
-/* ------------------------------------------------------------ connection */
-
-.conn {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  color: #fff;
-}
-
-.conn .dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 50%;
-  background: #ffd6d6;
-}
-
-.conn.live .dot {
-  background: #b6f5b8;
-  box-shadow: 0 0 0 0 rgba(182, 245, 184, 0.8);
-  animation: pulse 2s infinite;
-}
-
-@keyframes pulse {
-  70% {
-    box-shadow: 0 0 0 7px rgba(182, 245, 184, 0);
-  }
-  100% {
-    box-shadow: 0 0 0 0 rgba(182, 245, 184, 0);
-  }
 }
 
 /* --------------------------------------------------------------- players */
@@ -384,10 +360,6 @@ main.page {
   background-color: #9c9c9c;
 }
 
-.tag.red {
-  background-color: var(--red-color);
-}
-
 /* --------------------------------------------------------------- room id */
 
 .roomcode {
@@ -405,6 +377,13 @@ main.page {
   user-select: all;
 }
 
+.room-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 16px;
+}
+
 /* -------------------------------------------------------------- cuisines */
 
 .chip-grid {
@@ -418,7 +397,7 @@ main.page {
   background: var(--bg-color);
   color: var(--text-color);
   border-radius: var(--border-radius);
-  padding: 14px 10px;
+  padding: 16px 10px;
   font-family: inherit;
   font-weight: 900;
   font-size: 0.9rem;
@@ -449,7 +428,7 @@ main.page {
 input[type='range'] {
   flex: 1;
   accent-color: var(--red-color);
-  height: 26px;
+  height: 32px;
   cursor: pointer;
 }
 
@@ -459,71 +438,65 @@ input[type='range'] {
   text-align: right;
 }
 
-/* ----------------------------------------------------------- restaurants */
+/* --------------------------------------------------- the food being rated */
 
-.resto-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
-  gap: 18px;
-}
-
-.resto {
-  border: 1px solid var(--border);
-  border-radius: 18px;
-  overflow: hidden;
+.food-card {
+  position: relative;
   display: flex;
   flex-direction: column;
-  background: var(--bg-color);
-  box-shadow: var(--shadow);
+  align-items: center;
+  gap: 6px;
 }
 
-.resto img {
-  width: 100%;
-  height: 150px;
+.food-count {
+  position: absolute;
+  top: 14px;
+  right: 16px;
+  background: var(--pink-color);
+  border-radius: 20px;
+  padding: 4px 12px;
+  font-weight: 900;
+  font-size: 0.82rem;
+}
+
+.food-card img {
+  width: min(260px, 100%);
+  height: 190px;
   object-fit: cover;
-  display: block;
+  border-radius: 16px;
   background: var(--pink-color);
 }
 
-.resto .body {
-  padding: 14px 16px 16px;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-  flex: 1;
+.food-name {
+  margin: 10px 0 0;
+  font-size: 1.6rem;
 }
 
-.resto .name {
-  font-weight: 900;
-  font-size: 1.05rem;
-  line-height: 1.25;
+.food-place {
+  margin: 0;
+  font-weight: 700;
 }
 
-.resto .meta {
-  font-size: 0.85rem;
-  color: var(--muted);
-  display: flex;
-  flex-wrap: wrap;
-  gap: 4px 10px;
+.food-meta {
+  margin: 0 0 4px;
+}
+
+.meter-title {
+  margin: 10px 0 2px;
+  letter-spacing: 0.08em;
 }
 
 .eat-o-meter {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-top: auto;
-  padding-top: 8px;
+  gap: 10px;
+  width: min(300px, 100%);
+  margin-bottom: 12px;
 }
 
 .eat-o-meter .face {
-  font-size: 1.15rem;
+  font-size: 1.4rem;
   line-height: 1;
-}
-
-.rated-badge {
-  font-size: 0.8rem;
-  font-weight: 900;
-  color: var(--green-color);
 }
 
 /* -------------------------------------------------------------- podium */
@@ -594,21 +567,6 @@ input[type='range'] {
   background: var(--pink-color);
 }
 
-/* ------------------------------------------------------------- progress */
-
-.progress {
-  height: 12px;
-  background: var(--pink-color);
-  border-radius: 10px;
-  overflow: hidden;
-}
-
-.progress > div {
-  height: 100%;
-  background: var(--red-color);
-  transition: width 0.35s ease;
-}
-
 /* --------------------------------------------------------------- loader */
 
 .loader {
@@ -627,15 +585,6 @@ input[type='range'] {
   }
 }
 
-/* --------------------------------------------------------------- mascot */
-
-.mascot {
-  width: min(300px, 70vw);
-  height: auto;
-  display: block;
-  margin: 0 auto 8px;
-}
-
 /* ------------------------------------------------------------- stepper */
 
 .steps {
@@ -647,7 +596,6 @@ input[type='range'] {
   letter-spacing: 0.05em;
   text-transform: uppercase;
   color: var(--muted);
-  margin-bottom: 4px;
 }
 
 .steps span.on {
@@ -660,9 +608,6 @@ input[type='range'] {
   .navbar .brand img {
     height: 48px;
   }
-  .navbar .brand span {
-    display: none;
-  }
   main.page {
     padding: 20px 14px 48px;
   }
@@ -670,7 +615,13 @@ input[type='range'] {
     font-size: 1.55rem;
   }
   .btn {
-    padding: 13px 20px;
+    padding: 14px 22px;
+  }
+  .game-card {
+    padding: 22px 16px;
+  }
+  .food-card img {
+    height: 160px;
   }
   .winner img {
     width: 100%;

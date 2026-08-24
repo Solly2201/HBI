@@ -13,12 +13,18 @@ const api = axios.create({ baseURL: import.meta.env.VITE_API_BASE || '/api' });
 const TOKEN_KEY = 'hbi.token';
 const USER_KEY = 'hbi.user';
 
+/*
+ * The session lives in sessionStorage, not localStorage: each browser tab is
+ * its own player (handy at a table full of phones — and for demos with two
+ * tabs), and a refresh keeps the player in their room, which mirrors the
+ * reconnect behaviour of HBI Web.
+ */
 export function getToken() {
-  return localStorage.getItem(TOKEN_KEY);
+  return sessionStorage.getItem(TOKEN_KEY);
 }
 
 export function getUser() {
-  const raw = localStorage.getItem(USER_KEY);
+  const raw = sessionStorage.getItem(USER_KEY);
   try {
     return raw ? JSON.parse(raw) : null;
   } catch {
@@ -27,13 +33,13 @@ export function getUser() {
 }
 
 export function setSession(token, user) {
-  localStorage.setItem(TOKEN_KEY, token);
-  localStorage.setItem(USER_KEY, JSON.stringify(user));
+  sessionStorage.setItem(TOKEN_KEY, token);
+  sessionStorage.setItem(USER_KEY, JSON.stringify(user));
 }
 
 export function clearSession() {
-  localStorage.removeItem(TOKEN_KEY);
-  localStorage.removeItem(USER_KEY);
+  sessionStorage.removeItem(TOKEN_KEY);
+  sessionStorage.removeItem(USER_KEY);
 }
 
 api.interceptors.request.use((config) => {
@@ -47,12 +53,12 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (r) => r,
   (error) => {
-    // An expired token should drop the user back to the login screen rather
-    // than leaving them on a page that silently fails.
+    // An expired session should drop the player back to the home screen with a
+    // clean slate rather than leaving them on a page that silently fails.
     if (error.response?.status === 401 && getToken()) {
       clearSession();
-      if (!window.location.pathname.startsWith('/login')) {
-        window.location.assign('/login');
+      if (window.location.pathname !== '/') {
+        window.location.assign('/');
       }
     }
     return Promise.reject(error);
@@ -66,10 +72,28 @@ export function errorMessage(error, fallback = 'Something went wrong. Please try
   return data?.message || error?.message || fallback;
 }
 
-// ------------------------------------------------------------------ users
+// ---------------------------------------------------------------- sessions
 
-export const registerUser = (body) => api.post('/users/register', body).then((r) => r.data);
-export const loginUser = (body) => api.post('/users/login', body).then((r) => r.data);
+const createSession = (displayName) =>
+  api.post('/users/session', { displayName }).then((r) => r.data);
+
+/**
+ * Makes sure this tab has a session for the given display name.
+ *
+ * There is no login: the first thing a player does is type a name, and this
+ * quietly turns that name into an anonymous session token. Entering the same
+ * name again reuses the session (so a refresh doesn't create a new player);
+ * a different name starts a fresh one.
+ */
+export async function ensureSession(displayName) {
+  const existing = getUser();
+  if (existing && getToken() && existing.displayName === displayName) {
+    return existing;
+  }
+  const session = await createSession(displayName);
+  setSession(session.token, session.user);
+  return session.user;
+}
 
 // ------------------------------------------------------------------ rooms
 

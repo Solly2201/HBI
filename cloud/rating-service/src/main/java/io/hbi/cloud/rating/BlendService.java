@@ -10,6 +10,7 @@ import io.hbi.cloud.rating.RestaurantClient.RestaurantView;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
@@ -109,8 +110,13 @@ public class BlendService {
     /**
      * The shortlist this room is rating, computed on first call and frozen
      * thereafter.
+     *
+     * Deliberately not {@code @Transactional}: the insert below must commit
+     * (or fail) immediately so that two players racing to freeze the same
+     * shortlist can be told apart here and now — inside a wider transaction
+     * the unique-constraint violation would only surface at commit, past any
+     * chance of handling it.
      */
-    @Transactional
     public List<RestaurantView> candidatesFor(String roomCode) {
         List<Candidate> existing = candidates.findByRoomCodeOrderByPositionAsc(roomCode);
         if (!existing.isEmpty()) {
@@ -136,7 +142,18 @@ public class BlendService {
         for (int i = 0; i < shortlist.size(); i++) {
             rows.add(new Candidate(roomCode, shortlist.get(i).id(), i + 1));
         }
-        candidates.saveAll(rows);
+        try {
+            candidates.saveAll(rows);
+        } catch (DataIntegrityViolationException e) {
+            // Two players asked for the shortlist at the same moment and the
+            // other insert won the freeze. Everyone must rate the same list,
+            // so discard ours and return theirs.
+            List<Candidate> frozen = candidates.findByRoomCodeOrderByPositionAsc(roomCode);
+            log.info("shortlist for room {} was frozen concurrently, using the existing {} rows",
+                    roomCode, frozen.size());
+            return orderAsShortlist(frozen, restaurantClient.byIds(
+                    frozen.stream().map(Candidate::getRestaurantId).toList()));
+        }
         log.info("froze a shortlist of {} restaurants for room {}", shortlist.size(), roomCode);
         return shortlist;
     }

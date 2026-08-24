@@ -81,15 +81,15 @@ asynchronously over Kafka where it is not.
 ### The user journey
 
 ```text
-Login / Register
+Enter your name          (anonymous session, user-service)
       v
 Create or Join Room      (room-service)
       v
 Room Lobby               (live via WebSocket)
       v
-Select Preferences       (cuisines, budget, distance)
+Select Cuisines          (plus budget and distance)
       v
-Rate Restaurants         (the EAT-O-METER, 1..5)
+Rate, one at a time      (the EAT-O-METER, 1..5, NEXT reveals the next candidate)
       v
 See Group Progress       (live)
       v
@@ -108,7 +108,7 @@ live together in one service because they are one workflow over one dataset.
 | Service | Port | Owns | Talks to |
 |---|---|---|---|
 | **api-gateway** | 8080 | Routing, JWT verification, the single public entry point | all services |
-| **user-service** | 8081 | Registration, login, JWT issuing, profiles | `user_db` |
+| **user-service** | 8081 | Anonymous player sessions, JWT issuing, profiles (registration/login kept for API use) | `user_db` |
 | **room-service** | 8082 | Rooms, membership, room state | `room_db`, Kafka (produces) |
 | **restaurant-service** | 8083 | Restaurant catalogue, cuisine/budget/distance filtering | `restaurant_db` |
 | **rating-service** | 8084 | Preferences, ratings, recommendations, final decision, **WebSocket hub** | `rating_db`, Kafka (produces + consumes), room-service and restaurant-service over REST |
@@ -135,8 +135,9 @@ docker compose up --build
 
 Then open **http://localhost:5173**.
 
-To try the multiplayer flow, open a second browser (or a private window), register a
-second account and join with the room ID shown in the lobby.
+To try the multiplayer flow, open a second tab (each tab is its own player), enter a
+different name and join with the room ID shown in the lobby. No account or login is
+needed — see [Session model](#authentication).
 
 ### Everyday commands
 
@@ -185,14 +186,15 @@ mvn test                     # runs the unit tests
 ## API reference
 
 Everything is served through the gateway at `http://localhost:8080`.
-All endpoints except registration, login and restaurant reads need
+All endpoints except session creation, registration, login and restaurant reads need
 `Authorization: Bearer <jwt>`.
 
 ### User service — `/api/users`
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/users/register` | Create an account. `{email, displayName, password}` → 201 |
+| `POST` | `/api/users/session` | **Anonymous play.** `{displayName}` → `{token, expiresInSeconds, user}` — what the UI uses |
+| `POST` | `/api/users/register` | Create an account. `{email, displayName, password}` → 201 (kept for API clients; the UI no longer uses it) |
 | `POST` | `/api/users/login` | Exchange credentials for a JWT → `{token, expiresInSeconds, user}` |
 | `GET` | `/api/users/{id}` | Fetch a profile |
 | `PUT` | `/api/users/{id}` | Update your own display name |
@@ -363,17 +365,72 @@ When the rating service needs to know who is in a room, it calls
 Schemas are created by Hibernate (`ddl-auto: update`) and `restaurant_db` is seeded on
 first boot with 33 restaurants across HBI's eight cuisines.
 
+### Demo restaurant data
+
+PostgreSQL is the single source of truth for restaurant data. `RestaurantSeeder`
+populates the `restaurant` table **only when it is empty**; after that, edit the
+data directly in `restaurant_db` — no Java changes, no extra config files.
+
+Connect (stack running):
+
+```bash
+docker compose exec restaurant-db psql -U hbi restaurant_db
+# or from the host: psql -h localhost -p 5435 -U hbi restaurant_db   (password: hbi)
+```
+
+Columns: `name`, `cuisine`, `signature_dish`, `avg_cost_for_two` (rupees),
+`distance_km`, `base_rating` (display hint out of 5), `image_url`, `area`.
+
+```sql
+-- inspect
+SELECT id, name, cuisine, signature_dish, avg_cost_for_two, area FROM restaurant;
+
+-- modify a restaurant / dish / image
+UPDATE restaurant SET name = 'New Name' WHERE id = 1;
+UPDATE restaurant SET signature_dish = 'Vada Pav', image_url = '/images/samosa.jpg' WHERE id = 2;
+
+-- add one (image_url must point at a file in cloud/frontend/public/images/)
+INSERT INTO restaurant (name, cuisine, signature_dish, avg_cost_for_two, distance_km, base_rating, image_url, area)
+VALUES ('Chai Point', 'Beverages', 'Chai', 100, 0.5, 4.1, '/images/coffee.jpg', 'Vile Parle');
+
+-- remove one
+DELETE FROM restaurant WHERE id = 3;
+```
+
+Changes are live immediately — the service reads the database on every request.
+(Rooms that already froze their shortlist keep rating the restaurants they started
+with; new rooms pick up the new data.)
+
+To go back to the stock demo dataset, empty the table and restart the service so the
+seeder runs again:
+
+```bash
+docker compose exec restaurant-db psql -U hbi restaurant_db -c "TRUNCATE restaurant"
+docker compose restart restaurant-service
+```
+
+(`docker compose down -v` wipes all four databases and reseeds on the next start.)
+The seed list itself lives in
+`restaurant-service/src/main/java/io/hbi/cloud/restaurant/RestaurantSeeder.java` —
+edit it only if you want a different *default* dataset baked into the image.
+
 ---
 
 ## Authentication
 
+### Session model — anonymous players
+
+Nobody logs in to play HBI. The first thing a player does is type a display name;
+the frontend turns that into an anonymous session:
+
 ```text
-POST /api/users/login
+POST /api/users/session   {"displayName": "Alice"}
         |
-   user-service verifies the BCrypt hash, signs an HS256 JWT
+   user-service creates a synthetic user (random @hbi.local email,
+   random discarded password) and signs the same HS256 JWT a login would
         |
         v
-   frontend stores it and sends  Authorization: Bearer <jwt>
+   frontend keeps it in sessionStorage and sends  Authorization: Bearer <jwt>
         |
         v
    API GATEWAY verifies the signature, then stamps
@@ -383,14 +440,26 @@ POST /api/users/login
    the service trusts those two headers
 ```
 
+Downstream, an anonymous session is indistinguishable from a logged-in user — every
+service still sees a verified identity, so none of the authorization logic (host
+checks, membership checks, header stripping) changed. The session lives in
+`sessionStorage`, so each browser tab is a separate player and a refresh keeps the
+player in their room; closing the tab ends the session. Tokens expire after
+`JWT_TTL_MINUTES` (default 12 h).
+
+`register` and `login` still exist and still work — they are simply no longer part of
+the product UI.
+
+### The mechanics
+
 - Passwords are stored as BCrypt hashes and never logged.
 - `JWT_SECRET` comes from the environment; every service that needs it refuses to
   start if it is missing or shorter than 32 characters. There is no default in code.
 - The gateway **strips** any `X-User-Id` / `X-User-Name` a client tries to send before
   adding its own, so identity cannot be spoofed from outside.
-- Public routes: `POST /api/users/register`, `POST /api/users/login`,
-  `GET /api/restaurants/**`, `/ws/info` (a SockJS capability probe carrying no data),
-  and the actuator health endpoints.
+- Public routes: `POST /api/users/session`, `POST /api/users/register`,
+  `POST /api/users/login`, `GET /api/restaurants/**`, `/ws/info` (a SockJS capability
+  probe carrying no data), and the actuator health endpoints.
 - WebSocket upgrades are authenticated at the gateway from the `token` query
   parameter — see [Real-time communication](#real-time-communication).
 
@@ -545,10 +614,12 @@ Known and deliberate:
   replicas would mean a browser only receives events from the instance it happens to be
   connected to. A shared broker (or Kafka-fed fan-out per instance) would be needed to
   scale out.
-- **The candidate shortlist has a small race.** Two players requesting it at the exact
-  same moment can collide on the unique constraint; one request fails and the retry
-  succeeds. A lock would fix it properly.
-- **No refresh tokens.** A JWT lasts 12 hours by default, then the user logs in again.
+- **The candidate shortlist freeze is last-writer-loses.** Two players requesting it
+  at the exact same moment can collide on the unique constraint; the loser detects the
+  collision and returns the winner's frozen shortlist, so both players always rate the
+  same list.
+- **No refresh tokens.** A session JWT lasts 12 hours by default; after that the
+  player simply enters a name again.
 - **Restaurant data is fictional** and seeded locally. There is no maps or delivery
   integration, and `distanceKm` is a fixed attribute rather than a real distance from
   the user.

@@ -3,6 +3,7 @@ package io.hbi.cloud.user;
 import io.hbi.cloud.user.UserDtos.LoginRequest;
 import io.hbi.cloud.user.UserDtos.LoginResponse;
 import io.hbi.cloud.user.UserDtos.RegisterRequest;
+import io.hbi.cloud.user.UserDtos.SessionRequest;
 import io.hbi.cloud.user.UserDtos.UpdateProfileRequest;
 import io.hbi.cloud.user.UserDtos.UserView;
 import jakarta.validation.Valid;
@@ -19,6 +20,8 @@ import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
+
+import java.util.UUID;
 
 @RestController
 @RequestMapping("/api/users")
@@ -41,6 +44,23 @@ public class UserController {
         }
         HbiUser saved = users.save(new HbiUser(email, req.displayName().trim(), encoder.encode(req.password())));
         return ResponseEntity.status(HttpStatus.CREATED).body(UserView.of(saved));
+    }
+
+    /**
+     * Anonymous play: a display name in, a signed session token out.
+     *
+     * HBI is a party game, so nobody should have to create an account to join
+     * a room. The session is still a real user row with a real JWT — the
+     * gateway and the other services authenticate it exactly like a login —
+     * but the identity behind it is synthetic and cannot be logged into: the
+     * generated email is never shown and the password is random and discarded.
+     */
+    @PostMapping("/session")
+    public LoginResponse session(@Valid @RequestBody SessionRequest req) {
+        String email = "guest-" + UUID.randomUUID() + "@hbi.local";
+        HbiUser saved = users.save(new HbiUser(email, req.displayName().trim(),
+                encoder.encode(UUID.randomUUID().toString())));
+        return new LoginResponse(jwt.issue(saved), jwt.ttlSeconds(), UserView.of(saved));
     }
 
     @PostMapping("/login")
