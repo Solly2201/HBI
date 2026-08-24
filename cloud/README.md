@@ -139,6 +139,13 @@ To try the multiplayer flow, open a second tab (each tab is its own player), ent
 different name and join with the room ID shown in the lobby. No account or login is
 needed — see [Session model](#authentication).
 
+Other devices on the same network can play too: open
+`http://<this-machine's-LAN-IP>:5173` from a phone or laptop. The frontend calls the
+API and WebSocket on whatever host the page was opened from, and nginx forwards the
+original `Host` header, so no configuration is needed for this. `CORS_ALLOWED_ORIGINS`
+in `.env` only matters for genuinely cross-origin setups (e.g. the Vite dev server
+talking to the gateway directly).
+
 ### Everyday commands
 
 ```bash
