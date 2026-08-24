@@ -122,7 +122,7 @@ clients over STOMP WebSockets.
 | Service | Responsibility | Database |
 |---|---|---|
 | **API Gateway** | Single entry point, JWT verification, routing, WebSocket upgrade auth | — |
-| **User Service** | Anonymous player sessions, JWT issuing (registration/login kept for API use) | `user_db` |
+| **User Service** | Anonymous player sessions, JWT issuing | `user_db` |
 | **Room Service** | Room lifecycle, membership, room state | `room_db` |
 | **Restaurant Service** | Restaurant catalogue, cuisine/budget/distance search | `restaurant_db` |
 | **Rating Service** | Preferences, ratings, recommendation scoring **and group decision logic** | `rating_db` |
@@ -219,10 +219,12 @@ single development machine. They are not AWS production numbers.
 | Container restarts / OOM-kills during load campaign | **0 / 0** |
 
 **Honest limits.** 100 VUs is the validated ceiling on this hardware — a 250-VU run
-showed the onset of failure (12.2 % login errors) and 500 VUs collapsed. Login
-throughput is deliberately flat at ~110 req/s because BCrypt hashing is the dominant
-cost, which makes `user-service` the CPU bottleneck. Horizontal scaling has **not**
-been benchmarked, and the WebSocket layer is single-instance (Spring `SimpleBroker`).
+showed the onset of failure (12.2 % login errors) and 500 VUs collapsed. Those
+figures were measured against the account-era BCrypt login endpoint, whose ~110
+hashes/s made `user-service` the CPU bottleneck; account login has since been
+replaced by anonymous sessions, and that specific bottleneck no longer exists in the
+current code. Horizontal scaling has **not** been benchmarked, and the WebSocket
+layer is single-instance (Spring `SimpleBroker`).
 
 Full methodology, per-endpoint tables and resource sampling are in
 [`cloud/TESTING.md`](cloud/TESTING.md); the engineering log and bug write-ups are in
@@ -347,7 +349,7 @@ HBI/
 - Timers and additional host controls
 - Richer filtering and result explanations
 - Further improvements to the mobile experience
-- Moving secrets to a managed store and adding login rate limiting for Cloud
+- Moving secrets to a managed store and adding session-creation rate limiting for Cloud
 - Multi-instance WebSocket support (external STOMP broker) for Cloud
 
 Some earlier goals have since been realized in HBI Cloud, including persistent

@@ -1,16 +1,11 @@
 package io.hbi.cloud.user;
 
-import io.hbi.cloud.user.UserDtos.LoginRequest;
-import io.hbi.cloud.user.UserDtos.LoginResponse;
-import io.hbi.cloud.user.UserDtos.RegisterRequest;
 import io.hbi.cloud.user.UserDtos.SessionRequest;
+import io.hbi.cloud.user.UserDtos.SessionResponse;
 import io.hbi.cloud.user.UserDtos.UpdateProfileRequest;
 import io.hbi.cloud.user.UserDtos.UserView;
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.ResponseEntity;
-import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -21,56 +16,30 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.server.ResponseStatusException;
 
-import java.util.UUID;
-
 @RestController
 @RequestMapping("/api/users")
 public class UserController {
 
     private final UserRepository users;
     private final JwtIssuer jwt;
-    private final PasswordEncoder encoder = new BCryptPasswordEncoder();
 
     public UserController(UserRepository users, JwtIssuer jwt) {
         this.users = users;
         this.jwt = jwt;
     }
 
-    @PostMapping("/register")
-    public ResponseEntity<UserView> register(@Valid @RequestBody RegisterRequest req) {
-        String email = req.email().trim().toLowerCase();
-        if (users.existsByEmailIgnoreCase(email)) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, "That email is already registered.");
-        }
-        HbiUser saved = users.save(new HbiUser(email, req.displayName().trim(), encoder.encode(req.password())));
-        return ResponseEntity.status(HttpStatus.CREATED).body(UserView.of(saved));
-    }
-
     /**
-     * Anonymous play: a display name in, a signed session token out.
+     * The only way into HBI: a display name in, a signed session token out.
      *
-     * HBI is a party game, so nobody should have to create an account to join
-     * a room. The session is still a real user row with a real JWT — the
-     * gateway and the other services authenticate it exactly like a login —
-     * but the identity behind it is synthetic and cannot be logged into: the
-     * generated email is never shown and the password is random and discarded.
+     * HBI is a party game, so there are no accounts, no passwords and no
+     * login. Each session is a real user row with a real JWT — the gateway
+     * and the other services authenticate it like any bearer token — but the
+     * identity is anonymous and lives only as long as players keep the token.
      */
     @PostMapping("/session")
-    public LoginResponse session(@Valid @RequestBody SessionRequest req) {
-        String email = "guest-" + UUID.randomUUID() + "@hbi.local";
-        HbiUser saved = users.save(new HbiUser(email, req.displayName().trim(),
-                encoder.encode(UUID.randomUUID().toString())));
-        return new LoginResponse(jwt.issue(saved), jwt.ttlSeconds(), UserView.of(saved));
-    }
-
-    @PostMapping("/login")
-    public LoginResponse login(@Valid @RequestBody LoginRequest req) {
-        HbiUser user = users.findByEmailIgnoreCase(req.email().trim())
-                .filter(u -> encoder.matches(req.password(), u.getPasswordHash()))
-                // Same message for "no such user" and "wrong password" so the
-                // endpoint cannot be used to enumerate registered emails.
-                .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Invalid email or password."));
-        return new LoginResponse(jwt.issue(user), jwt.ttlSeconds(), UserView.of(user));
+    public SessionResponse session(@Valid @RequestBody SessionRequest req) {
+        HbiUser saved = users.save(new HbiUser(req.displayName().trim()));
+        return new SessionResponse(jwt.issue(saved), jwt.ttlSeconds(), UserView.of(saved));
     }
 
     @GetMapping("/{id}")

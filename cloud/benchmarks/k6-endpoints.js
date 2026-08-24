@@ -23,7 +23,7 @@ const GRACE = 5;
 const step = SLOT + GRACE;
 
 const ENDPOINTS = [
-  'login',
+  'session',
   'restaurants',
   'room_get',
   'room_create',
@@ -77,14 +77,13 @@ function auth(token) {
 
 // ------------------------------------------------------------------ scenarios
 
-export function login() {
-  const u = pick(fixture.users, __VU + __ITER);
+export function session() {
   const res = http.post(
-    `${GATEWAY}/api/users/login`,
-    JSON.stringify({ email: u.email, password: u.password }),
-    { headers: { 'Content-Type': 'application/json' }, tags: { name: 'login' } }
+    `${GATEWAY}/api/users/session`,
+    JSON.stringify({ displayName: `k6_${__VU}_${__ITER}` }),
+    { headers: { 'Content-Type': 'application/json' }, tags: { name: 'session' } }
   );
-  record('login', res, [200]);
+  record('session', res, [200]);
 }
 
 export function restaurants() {

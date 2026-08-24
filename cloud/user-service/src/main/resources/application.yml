@@ -1,7 +1,7 @@
 server:
   port: ${SERVER_PORT:8081}
   error:
-    # Surface the "Invalid email or password."-style messages to the frontend.
+    # Surface validation messages (e.g. a blank display name) to the frontend.
     include-message: always
 
 spring:
@@ -38,7 +38,7 @@ management:
 info:
   app:
     name: HBI Cloud - User Service
-    responsibility: Registration, login, JWT issuing, user profiles
+    responsibility: Anonymous player sessions, JWT issuing, user profiles
 
 logging:
   level:

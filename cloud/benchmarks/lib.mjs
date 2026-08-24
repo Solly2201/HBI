@@ -79,17 +79,14 @@ export function withDeadline(promise, ms, label = 'operation') {
   return Promise.race([promise, guard]).finally(() => clearTimeout(timer));
 }
 
-/** Register + log in, returning {token, id, email, displayName}. */
+/** Starts an anonymous session, returning {token, id, displayName}. */
 export async function makeUser(tag) {
-  const email = `${tag}@hbi.test`;
-  const password = 'blend123';
   const displayName = tag.slice(0, 30);
-  await call('POST', '/api/users/register', { body: { email, displayName, password } });
-  const login = await call('POST', '/api/users/login', { body: { email, password } });
-  if (!login.data?.token) {
-    throw new Error(`login failed for ${email}: ${login.status} ${JSON.stringify(login.data)}`);
+  const session = await call('POST', '/api/users/session', { body: { displayName } });
+  if (!session.data?.token) {
+    throw new Error(`session failed for ${displayName}: ${session.status} ${JSON.stringify(session.data)}`);
   }
-  return { token: login.data.token, id: login.data.user.id, email, displayName };
+  return { token: session.data.token, id: session.data.user.id, displayName };
 }
 
 export function stompClient() {

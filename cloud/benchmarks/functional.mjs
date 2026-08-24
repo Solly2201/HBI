@@ -16,15 +16,15 @@ const S = Date.now();
 const ws = GATEWAY.replace(/^http/, 'ws');
 
 // ===================================================== the happy path
-h.section('User A and User B - registration and login');
+h.section('Player A and Player B - anonymous sessions');
 
 const alice = await makeUser(`fa_alice_${S}`);
-h.check('User A registers and logs in', !!alice.token);
+h.check('Player A starts a session and gets a JWT', !!alice.token);
 const bob = await makeUser(`fa_bob_${S}`);
-h.check('User B registers and logs in', !!bob.token);
+h.check('Player B starts a session and gets a JWT', !!bob.token);
 
 const profile = await call('GET', `/api/users/${alice.id}`, { token: alice.token });
-h.check('GET /api/users/{id} returns the profile', profile.data?.email === alice.email);
+h.check('GET /api/users/{id} returns the profile', profile.data?.displayName === alice.displayName);
 
 h.section('Room creation and joining');
 

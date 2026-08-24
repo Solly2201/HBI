@@ -10,7 +10,11 @@ import jakarta.persistence.Table;
 import java.time.Instant;
 
 /**
- * A registered HBI Cloud user. Lives in user_db, which no other service touches.
+ * An anonymous HBI player. Lives in user_db, which no other service touches.
+ *
+ * There are no accounts: a row is created when a player starts a session with
+ * a display name, and the id is what the JWT (and every other service)
+ * identifies the player by.
  */
 @Entity
 @Table(name = "hbi_user")
@@ -20,15 +24,8 @@ public class HbiUser {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Column(nullable = false, unique = true, length = 160)
-    private String email;
-
     @Column(name = "display_name", nullable = false, length = 40)
     private String displayName;
-
-    /** BCrypt hash. The plaintext password is never stored or logged. */
-    @Column(name = "password_hash", nullable = false, length = 100)
-    private String passwordHash;
 
     @Column(name = "created_at", nullable = false)
     private Instant createdAt = Instant.now();
@@ -37,19 +34,13 @@ public class HbiUser {
         // for JPA
     }
 
-    public HbiUser(String email, String displayName, String passwordHash) {
-        this.email = email;
+    public HbiUser(String displayName) {
         this.displayName = displayName;
-        this.passwordHash = passwordHash;
         this.createdAt = Instant.now();
     }
 
     public Long getId() {
         return id;
-    }
-
-    public String getEmail() {
-        return email;
     }
 
     public String getDisplayName() {
@@ -58,14 +49,6 @@ public class HbiUser {
 
     public void setDisplayName(String displayName) {
         this.displayName = displayName;
-    }
-
-    public String getPasswordHash() {
-        return passwordHash;
-    }
-
-    public void setPasswordHash(String passwordHash) {
-        this.passwordHash = passwordHash;
     }
 
     public Instant getCreatedAt() {

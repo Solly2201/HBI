@@ -406,3 +406,37 @@ A product-experience pass; the architecture above is unchanged.
 - **Demo data** stays PostgreSQL-only: edit `restaurant_db` directly (port 5435);
   `RestaurantSeeder` reseeds only an empty table — see README "Demo restaurant
   data".
+
+---
+
+## Account authentication removed (2026-08-24, later the same day)
+
+HBI Cloud is now anonymous-only. The documented model is simply: **anonymous
+session-based players authenticated using short-lived JWT session tokens.**
+
+Removed:
+
+- `POST /api/users/register` and `POST /api/users/login`, with their DTOs
+  (`RegisterRequest`, `LoginRequest`, `LoginResponse`) and the BCrypt
+  hashing/verification behind them (`spring-security-crypto` dependency dropped).
+- The `email` and `password_hash` columns on `hbi_user`, the email-based
+  repository finders, the `email` JWT claim, and the `lower(email)` functional
+  index initializer. A startup cleanup (`LegacySchemaCleanup`) drops the two
+  legacy columns from account-era databases, since `ddl-auto: update` never
+  removes columns on its own.
+
+Kept:
+
+- `POST /api/users/session` (a display name in, an anonymous player row and a
+  signed HS256 JWT out), JWT verification at the gateway and for WebSocket
+  upgrades, the X-User-Id / X-User-Name header stamping, and per-tab
+  `sessionStorage` sessions in the frontend. Authorization logic in every
+  service is untouched — a session is a verified identity like any other.
+
+Consequences for earlier findings in this log: the BCrypt ~110 hashes/s login
+ceiling, the login rate-limiting recommendation, and the `lower(email)` index
+work are all moot — the endpoints they concern no longer exist. The load
+figures above remain accurate as a record of what was measured at the time.
+
+The smoke, functional and regression suites were updated to start sessions
+instead of registering/logging in, and re-run green after the change.

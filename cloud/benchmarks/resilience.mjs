@@ -30,8 +30,8 @@ const report = [];
 async function probe(ctx) {
   const out = {};
   out['GET /api/restaurants'] = (await call('GET', '/api/restaurants')).status;
-  out['POST /api/users/login'] = (await call('POST', '/api/users/login',
-    { body: { email: ctx.user.email, password: 'blend123' } })).status;
+  out['POST /api/users/session'] = (await call('POST', '/api/users/session',
+    { body: { displayName: 'probe' } })).status;
   out['POST /api/rooms'] = (await call('POST', '/api/rooms', { token: ctx.user.token })).status;
   out[`GET /api/rooms/{code}`] = (await call('GET', `/api/rooms/${ctx.room}`, { token: ctx.user.token })).status;
   out['GET /api/rooms/{code}/candidates'] = (await call('GET', `/api/rooms/${ctx.room}/candidates`,

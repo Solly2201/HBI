@@ -3,7 +3,7 @@
  * benchmarks/load-fixture.json.
  *
  * Seeding here rather than inside k6's setup() keeps the measured window free
- * of registration work, so the numbers describe the endpoints under test.
+ * of session-creation work, so the numbers describe the endpoints under test.
  */
 
 import fs from 'node:fs';
@@ -15,15 +15,14 @@ const HERE = path.dirname(fileURLToPath(import.meta.url));
 const USERS = Number(process.env.POOL_USERS || 40);
 const ROOMS = Number(process.env.POOL_ROOMS || 20);
 const STAMP = Date.now();
-const PASSWORD = 'blend123';
 
-console.log(`seeding ${USERS} users and ${ROOMS} rooms...`);
+console.log(`seeding ${USERS} players and ${ROOMS} rooms...`);
 
 const users = [];
 for (let i = 0; i < USERS; i += 1) {
   // eslint-disable-next-line no-await-in-loop
   const u = await makeUser(`load_${STAMP}_${i}`);
-  users.push({ id: u.id, email: u.email, password: PASSWORD, token: u.token });
+  users.push({ id: u.id, displayName: u.displayName, token: u.token });
 }
 console.log(`  ${users.length} users`);
 

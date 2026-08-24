@@ -40,7 +40,6 @@ public class JwtIssuer {
         return Jwts.builder()
                 .subject(String.valueOf(user.getId()))
                 .claim("name", user.getDisplayName())
-                .claim("email", user.getEmail())
                 .issuedAt(Date.from(now))
                 .expiration(Date.from(now.plus(ttl)))
                 .signWith(key)

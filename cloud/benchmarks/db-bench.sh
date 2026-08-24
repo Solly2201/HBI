@@ -15,7 +15,6 @@ USER=${DATABASE_USERNAME:-hbi}
 
 # service|db|label|sql
 QUERIES=$(cat <<'SQL'
-user-db|user_db|User lookup by email (login path)|select * from hbi_user where lower(email) = lower('load_1_0@hbi.test')
 user-db|user_db|User lookup by id|select * from hbi_user where id = 1
 room-db|room_db|Room lookup by code|select * from room where code = (select code from room limit 1)
 room-db|room_db|Room members by code|select * from room_member where room_code = (select code from room limit 1) order by joined_at asc

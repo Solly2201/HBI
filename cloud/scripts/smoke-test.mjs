@@ -3,8 +3,8 @@
  *
  *   node scripts/smoke-test.mjs
  *
- * It walks the whole journey with two users - register, log in, create a room,
- * join it, submit preferences, rate the shortlist - and asserts that the Kafka
+ * It walks the whole journey with two players - start anonymous sessions,
+ * create a room, join it, submit preferences, rate the shortlist - and asserts that the Kafka
  * -> decision -> WebSocket path actually delivers the result to a subscribed
  * browser. Any failure exits non-zero.
  *
@@ -72,9 +72,8 @@ async function waitFor(label, fn, { attempts = 40, delay = 500 } = {}) {
 // --------------------------------------------------------------------------
 
 async function main() {
-  const stamp = Date.now();
-  const alice = { email: `alice${stamp}@hbi.test`, displayName: 'Alice', password: 'blend123' };
-  const bob = { email: `bob${stamp}@hbi.test`, displayName: 'Bob', password: 'blend123' };
+  const alice = { displayName: 'Alice' };
+  const bob = { displayName: 'Bob' };
 
   // -------------------------------------------------------------- health
   step('Gateway and services are up');
@@ -82,34 +81,28 @@ async function main() {
   check('gateway /actuator/health is UP', health.data?.status === 'UP', JSON.stringify(health.data));
 
   // ------------------------------------------------------------- auth
-  step('Registration and login');
-  const reg1 = await call('POST', '/api/users/register', { body: alice });
-  check('alice registers (201)', reg1.status === 201, `got ${reg1.status}`);
+  step('Anonymous sessions (no accounts, no passwords)');
+  const s1 = await call('POST', '/api/users/session', { body: alice });
+  check('alice starts a session and gets a JWT', s1.status === 200 && !!s1.data?.token,
+    `got ${s1.status} ${JSON.stringify(s1.data)}`);
 
-  const dupe = await call('POST', '/api/users/register', { body: alice });
-  check('duplicate email is rejected (409)', dupe.status === 409, `got ${dupe.status}`);
+  const s2 = await call('POST', '/api/users/session', { body: bob });
+  check('bob starts a session and gets a JWT', s2.status === 200 && !!s2.data?.token);
 
-  const reg2 = await call('POST', '/api/users/register', { body: bob });
-  check('bob registers (201)', reg2.status === 201, `got ${reg2.status}`);
+  check('two sessions are two different players',
+    s1.data?.user?.id !== s2.data?.user?.id);
 
-  const badLogin = await call('POST', '/api/users/login', {
-    body: { email: alice.email, password: 'wrong-password' },
-  });
-  check('wrong password is rejected (401)', badLogin.status === 401, `got ${badLogin.status}`);
+  const blank = await call('POST', '/api/users/session', { body: { displayName: '   ' } });
+  check('a blank display name is rejected (400)', blank.status === 400, `got ${blank.status}`);
 
-  const login1 = await call('POST', '/api/users/login', {
-    body: { email: alice.email, password: alice.password },
-  });
-  check('alice logs in and gets a JWT', !!login1.data?.token, JSON.stringify(login1.data));
+  const gone = await call('POST', '/api/users/register',
+    { body: { email: 'x@y.z', displayName: 'X', password: 'blend123' } });
+  check('the account-era register endpoint is gone (401/404)',
+    gone.status === 401 || gone.status === 404, `got ${gone.status}`);
 
-  const login2 = await call('POST', '/api/users/login', {
-    body: { email: bob.email, password: bob.password },
-  });
-  check('bob logs in and gets a JWT', !!login2.data?.token);
-
-  const aliceToken = login1.data.token;
-  const bobToken = login2.data.token;
-  const aliceId = login1.data.user.id;
+  const aliceToken = s1.data.token;
+  const bobToken = s2.data.token;
+  const aliceId = s1.data.user.id;
 
   // --------------------------------------------------------- gateway auth
   step('Gateway enforces authentication');
@@ -306,7 +299,7 @@ async function main() {
 
   // --------------------------------------------------------------- leave
   step('Leaving a room');
-  const left = await call('DELETE', `/api/rooms/${roomCode}/members/${login2.data.user.id}`, {
+  const left = await call('DELETE', `/api/rooms/${roomCode}/members/${s2.data.user.id}`, {
     token: bobToken,
   });
   check('bob leaves the room', left.status === 200, `got ${left.status}`);

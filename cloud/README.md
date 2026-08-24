@@ -108,7 +108,7 @@ live together in one service because they are one workflow over one dataset.
 | Service | Port | Owns | Talks to |
 |---|---|---|---|
 | **api-gateway** | 8080 | Routing, JWT verification, the single public entry point | all services |
-| **user-service** | 8081 | Anonymous player sessions, JWT issuing, profiles (registration/login kept for API use) | `user_db` |
+| **user-service** | 8081 | Anonymous player sessions, JWT issuing, profiles | `user_db` |
 | **room-service** | 8082 | Rooms, membership, room state | `room_db`, Kafka (produces) |
 | **restaurant-service** | 8083 | Restaurant catalogue, cuisine/budget/distance filtering | `restaurant_db` |
 | **rating-service** | 8084 | Preferences, ratings, recommendations, final decision, **WebSocket hub** | `rating_db`, Kafka (produces + consumes), room-service and restaurant-service over REST |
@@ -186,17 +186,15 @@ mvn test                     # runs the unit tests
 ## API reference
 
 Everything is served through the gateway at `http://localhost:8080`.
-All endpoints except session creation, registration, login and restaurant reads need
+All endpoints except session creation and restaurant reads need
 `Authorization: Bearer <jwt>`.
 
 ### User service — `/api/users`
 
 | Method | Path | Purpose |
 |---|---|---|
-| `POST` | `/api/users/session` | **Anonymous play.** `{displayName}` → `{token, expiresInSeconds, user}` — what the UI uses |
-| `POST` | `/api/users/register` | Create an account. `{email, displayName, password}` → 201 (kept for API clients; the UI no longer uses it) |
-| `POST` | `/api/users/login` | Exchange credentials for a JWT → `{token, expiresInSeconds, user}` |
-| `GET` | `/api/users/{id}` | Fetch a profile |
+| `POST` | `/api/users/session` | Start an anonymous session. `{displayName}` → `{token, expiresInSeconds, user}` |
+| `GET` | `/api/users/{id}` | Fetch a player's profile |
 | `PUT` | `/api/users/{id}` | Update your own display name |
 
 ### Room service — `/api/rooms`
@@ -418,16 +416,17 @@ edit it only if you want a different *default* dataset baked into the image.
 
 ## Authentication
 
-### Session model — anonymous players
+**Anonymous session-based players authenticated using short-lived JWT session
+tokens.** There are no user accounts: no registration, no passwords, no login.
 
-Nobody logs in to play HBI. The first thing a player does is type a display name;
-the frontend turns that into an anonymous session:
+The first thing a player does is type a display name; the frontend turns that into
+an anonymous session:
 
 ```text
 POST /api/users/session   {"displayName": "Alice"}
         |
-   user-service creates a synthetic user (random @hbi.local email,
-   random discarded password) and signs the same HS256 JWT a login would
+   user-service stores an anonymous player row (id + display name)
+   and signs a short-lived HS256 JWT for it
         |
         v
    frontend keeps it in sessionStorage and sends  Authorization: Bearer <jwt>
@@ -440,26 +439,21 @@ POST /api/users/session   {"displayName": "Alice"}
    the service trusts those two headers
 ```
 
-Downstream, an anonymous session is indistinguishable from a logged-in user — every
-service still sees a verified identity, so none of the authorization logic (host
-checks, membership checks, header stripping) changed. The session lives in
-`sessionStorage`, so each browser tab is a separate player and a refresh keeps the
-player in their room; closing the tab ends the session. Tokens expire after
-`JWT_TTL_MINUTES` (default 12 h).
-
-`register` and `login` still exist and still work — they are simply no longer part of
-the product UI.
+The JWT is what carries the authenticated session identity between the client, the
+gateway and the microservices — two sessions are two different players, which is how
+everyone in a room is told apart. The session lives in `sessionStorage`, so each
+browser tab is a separate player and a refresh keeps the player in their room;
+closing the tab ends the session. Tokens expire after `JWT_TTL_MINUTES`
+(default 12 h); after that the player simply enters a name again.
 
 ### The mechanics
 
-- Passwords are stored as BCrypt hashes and never logged.
 - `JWT_SECRET` comes from the environment; every service that needs it refuses to
   start if it is missing or shorter than 32 characters. There is no default in code.
 - The gateway **strips** any `X-User-Id` / `X-User-Name` a client tries to send before
   adding its own, so identity cannot be spoofed from outside.
-- Public routes: `POST /api/users/session`, `POST /api/users/register`,
-  `POST /api/users/login`, `GET /api/restaurants/**`, `/ws/info` (a SockJS capability
-  probe carrying no data), and the actuator health endpoints.
+- Public routes: `POST /api/users/session`, `GET /api/restaurants/**`, `/ws/info`
+  (a SockJS capability probe carrying no data), and the actuator health endpoints.
 - WebSocket upgrades are authenticated at the gateway from the `token` query
   parameter — see [Real-time communication](#real-time-communication).
 
@@ -533,8 +527,8 @@ node scripts/smoke-test.mjs                        # Node 22+
 node --experimental-websocket scripts/smoke-test.mjs   # Node 21 and older
 ```
 
-It drives the complete journey through the gateway with two users — 54 assertions
-covering registration, login, gateway authentication, catalogue filtering, rooms,
+It drives the complete journey through the gateway with two players — 53 assertions
+covering anonymous sessions, gateway authentication, catalogue filtering, rooms,
 preferences, rating, scoring, the decision and leaving.
 
 The parts worth pointing at:
