@@ -260,6 +260,7 @@ export default function RoomPage() {
         {phase === 'RATING' && (
           <RatingBoard
             roomCode={roomCode}
+            members={members}
             isHost={isHost}
             progress={progress}
             setProgress={setProgress}

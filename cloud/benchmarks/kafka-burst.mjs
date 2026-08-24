@@ -21,7 +21,7 @@ function lag() {
     const out = execSync(
       'docker compose exec -T kafka /opt/kafka/bin/kafka-consumer-groups.sh '
       + `--bootstrap-server kafka:9092 --describe --group ${GROUP}`,
-      { cwd: 'C:/Users/Solly/Downloads/HBI-Cloud/cloud', encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'],
+      { cwd: new URL('..', import.meta.url), encoding: 'utf8', stdio: ['pipe', 'pipe', 'ignore'],
         env: { ...process.env, MSYS_NO_PATHCONV: '1' } }
     );
     let total = 0;

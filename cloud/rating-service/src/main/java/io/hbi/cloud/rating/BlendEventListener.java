@@ -1,20 +1,18 @@
 package io.hbi.cloud.rating;
 
-import io.hbi.cloud.rating.RecommendationEngine.ScoredFood;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 
 /**
  * The asynchronous half of HBI Microservices.
  *
  *   room-service --(hbi.room-events)--> here --> STOMP --> browsers
- *   this service --(hbi.ratings)------> here --> scoring --> STOMP --> browsers
+ *   this service --(hbi.ratings)------> here --> mark dirty --> RescoreCoalescer
+ *                                         |--> STOMP --> browsers
  */
 @Component
 public class BlendEventListener {
@@ -23,10 +21,13 @@ public class BlendEventListener {
 
     private final BlendService blend;
     private final RoomBroadcaster broadcaster;
+    private final RescoreCoalescer coalescer;
 
-    public BlendEventListener(BlendService blend, RoomBroadcaster broadcaster) {
+    public BlendEventListener(BlendService blend, RoomBroadcaster broadcaster,
+                              RescoreCoalescer coalescer) {
         this.blend = blend;
         this.broadcaster = broadcaster;
+        this.coalescer = coalescer;
     }
 
     /** Lobby changes produced by the room service. */
@@ -53,9 +54,11 @@ public class BlendEventListener {
     }
 
     /**
-     * A rating landed, or a player blended early. Either way: re-score the
-     * room, push the new ranking, and if every active player has now finished,
-     * lock the answer in.
+     * A rating landed, or a player blended early. The raw event is forwarded
+     * to the room's subscribers immediately; the expensive part — progress,
+     * re-scoring, and the everyone-has-finished check — is only *marked* here
+     * and executed by the {@link RescoreCoalescer}, so a burst of events
+     * costs one re-score per flush window instead of one per event.
      */
     @KafkaListener(topics = "${hbi.kafka.ratings-topic}", groupId = "${hbi.kafka.group-id}")
     public void onRatingSubmitted(Map<String, Object> event) {
@@ -80,20 +83,7 @@ public class BlendEventListener {
         // DefaultErrorHandler, which retries a bounded number of times and
         // then parks the record on the dead letter topic (KafkaErrorConfig).
         broadcaster.send(roomCode, label, event);
-        broadcaster.send(roomCode, "RATING_PROGRESS", blend.progress(roomCode));
-
-        List<ScoredFood> scored = blend.recomputeRecommendations(roomCode);
-        if (!scored.isEmpty()) {
-            broadcaster.send(roomCode, "RECOMMENDATIONS_GENERATED", blend.storedRecommendations(roomCode));
-        }
-
-        if (blend.everyoneHasFinished(roomCode)) {
-            blend.finalise(roomCode, "AUTO").ifPresent(decision -> {
-                Map<String, Object> payload = new LinkedHashMap<>(decision);
-                payload.put("trigger", "ALL_PLAYERS_RATED");
-                broadcaster.send(roomCode, "DECISION_FINALIZED", payload);
-            });
-        }
+        coalescer.mark(roomCode);
     }
 
     private static String str(Object o) {

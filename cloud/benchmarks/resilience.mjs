@@ -11,7 +11,7 @@
 import { execSync } from 'node:child_process';
 import { call, makeUser, subscribeRoom, sleep } from './lib.mjs';
 
-const CWD = 'C:/Users/Solly/Downloads/HBI-Cloud/cloud';
+const CWD = new URL('..', import.meta.url);  // the cloud/ directory this probe lives under
 const sh = (cmd, quiet = true) => {
   try {
     return execSync(cmd, {

@@ -27,7 +27,7 @@ import { Alert, Loader } from '../components';
  * every player has finished — fully or via BLEND NOW — the decision is pushed
  * to everyone at once and this screen is replaced by the result.
  */
-export default function RatingBoard({ roomCode, isHost, progress, setProgress, onDecided }) {
+export default function RatingBoard({ roomCode, members, isHost, progress, setProgress, onDecided }) {
   const me = getUser();
   const [candidates, setCandidates] = useState([]);
   const [index, setIndex] = useState(0);
@@ -142,6 +142,11 @@ export default function RatingBoard({ roomCode, isHost, progress, setProgress, o
     progress?.minRatingsRequired ?? Math.max(1, Math.ceil(candidates.length / 2));
   const hostCanForce = Boolean(isHost && progress?.hostCanFinalize);
 
+  // Who has not finished yet — names the server and lobby already provide.
+  const waitingOn = (members || [])
+    .filter((m) => m.active && !(progress?.finishedUserIds || []).includes(m.userId))
+    .map((m) => m.displayName);
+
   // ------------------------------------------------------------- finished
   if (finished) {
     return (
@@ -155,6 +160,11 @@ export default function RatingBoard({ roomCode, isHost, progress, setProgress, o
           {progress && (
             <p className="muted" style={{ margin: 0 }}>
               {progress.membersFinished} of {progress.membersTotal} players done.
+            </p>
+          )}
+          {waitingOn.length > 0 && (
+            <p className="muted" style={{ margin: 0 }}>
+              Waiting on: {waitingOn.join(', ')}
             </p>
           )}
         </div>

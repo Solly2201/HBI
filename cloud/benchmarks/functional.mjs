@@ -483,5 +483,36 @@ await s2.close();
 await aSock.close();
 await bSock.close();
 
+// ===================================================== session rate limiting
+h.section('Anonymous session rate limiting (gateway)');
+
+{
+  // The limiter keys on the last X-Forwarded-For hop, so a made-up test
+  // address gets its own bucket and this burst cannot throttle the real
+  // callers used by the rest of the suite (or a suite run right after).
+  const spoof = { 'X-Forwarded-For': '198.51.100.42' };
+  const burst = [];
+  for (let i = 0; i < 70; i += 1) {
+    burst.push(await call('POST', '/api/users/session', {
+      body: { displayName: `rl_${S}_${i}` }, rawHeaders: spoof, attempts: 1,
+    }));
+  }
+  const ok = burst.filter((r) => r.status === 200).length;
+  const throttled = burst.filter((r) => r.status === 429).length;
+  h.check('a session burst is throttled with 429 once the bucket empties',
+    throttled > 0, `got ${ok}x200 ${throttled}x429`);
+  h.check('the burst capacity is honoured before throttling begins (~60)',
+    ok >= 55 && ok <= 65, `got ${ok}x200`);
+  h.check('every response is 200 or 429 (nothing breaks)',
+    burst.every((r) => r.status === 200 || r.status === 429),
+    JSON.stringify([...new Set(burst.map((r) => r.status))]));
+
+  const other = await call('POST', '/api/users/session', {
+    body: { displayName: `rl_ok_${S}` }, rawHeaders: { 'X-Forwarded-For': '198.51.100.43' },
+  });
+  h.check('a different caller is unaffected by the throttled one', other.status === 200,
+    `got ${other.status}`);
+}
+
 const failures = h.summary();
 process.exit(failures ? 1 : 0);

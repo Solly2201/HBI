@@ -8,7 +8,7 @@
 #   bash benchmarks/db-bench.sh [runs]
 
 export MSYS_NO_PATHCONV=1
-cd /c/Users/Solly/Downloads/HBI-Cloud/cloud || exit 1
+cd "$(dirname "$0")/.." || exit 1
 
 RUNS=${RUNS:-${1:-30}}
 USER=${DATABASE_USERNAME:-hbi}

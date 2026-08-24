@@ -485,6 +485,10 @@ closing the tab ends the session. Tokens expire after `JWT_TTL_MINUTES`
   adding its own, so identity cannot be spoofed from outside.
 - Public routes: `POST /api/users/session`, `GET /api/foods/**`, `/ws/info`
   (a SockJS capability probe carrying no data), and the actuator health endpoints.
+- Session creation is the one unauthenticated write, so the gateway rate-limits it
+  per caller (token bucket, default burst 60 refilling 60/minute, **429** beyond
+  that; `SESSION_RATE_CAPACITY` / `SESSION_RATE_REFILL_PER_MINUTE`). Nothing else
+  is rate-limited — every other endpoint needs the JWT this one issues.
 - WebSocket upgrades are authenticated at the gateway from the `token` query
   parameter — see [Real-time communication](#real-time-communication).
 
@@ -603,7 +607,12 @@ docker compose exec kafka /opt/kafka/bin/kafka-console-consumer.sh \
 
 ## Deployment
 
-See **[DEPLOYMENT.md](DEPLOYMENT.md)** for deploying to a cloud VM.
+See **[DEPLOYMENT.md](DEPLOYMENT.md)** for deploying to a cloud VM: the committed
+`docker-compose.prod.yml` port-lockdown override (only the loopback-bound frontend
+is published; a TLS-terminating reverse proxy fronts it on 443), production
+secrets, backups, and the operator runbook. That document describes a deployment
+path — **no AWS deployment currently exists**, and local development keeps using
+plain `docker compose up` unchanged.
 
 ---
 
@@ -631,6 +640,14 @@ ceremony. Service URLs are environment variables, so they change per environment
 
 **The room shortlist is frozen once.** The alternative — recomputing candidates on
 every request — produced a different rating screen for each player.
+
+**Re-scoring is coalesced, not per-event.** The Kafka consumer only marks a room
+dirty; a single scheduled thread re-scores every dirty room at most once per
+`RESCORE_INTERVAL_MS` (default 250 ms). A burst of ratings costs one re-score per
+window instead of one each — measured on a 300-event burst: consumer lag went from
+peaking at 279 (23 s to drain) to holding at 0. Correctness is unchanged because
+scoring always reads the full current state, and the automatic decision check rides
+in the same flush, so its worst-case extra latency is one window.
 
 **`GET /recommendations` scores on read instead of returning the stored ranking.**
 The stored rows are written by the Kafka consumer, so they can lag a rating that was

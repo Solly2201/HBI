@@ -78,6 +78,14 @@ spring:
 hbi:
   jwt:
     secret: ${JWT_SECRET}
+  rate-limit:
+    session:
+      # Anonymous session creation only (POST /api/users/session): each caller
+      # may burst up to `capacity` sessions and regains `refill-per-minute`
+      # thereafter. Generous by default so local multi-tab play and the test
+      # suites never notice it; tighten via env for a public deployment.
+      capacity: ${SESSION_RATE_CAPACITY:60}
+      refill-per-minute: ${SESSION_RATE_REFILL_PER_MINUTE:60}
 
 management:
   endpoints:

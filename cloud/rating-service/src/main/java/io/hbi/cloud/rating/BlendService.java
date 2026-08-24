@@ -367,7 +367,14 @@ public class BlendService {
      * server, so no amount of frontend creativity can bypass it. Once a room
      * has decided, the check is skipped and the existing decision is returned,
      * which keeps repeated calls harmless.
+     *
+     * Transactional at this level because {@link #finalise} and
+     * {@link #recomputeRecommendations} are reached by self-invocation here,
+     * which bypasses the proxy — without a transaction opened at the entry
+     * point, the derived delete inside the re-score has no transaction to
+     * join and the request fails once a stored ranking exists.
      */
+    @Transactional
     public Map<String, Object> hostFinalise(String roomCode) {
         Optional<Decision> already = decisions.findByRoomCode(roomCode);
         if (already.isPresent()) {

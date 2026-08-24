@@ -15,7 +15,7 @@ import { execSync } from 'node:child_process';
 import { call, makeUser, subscribeRoom, sleep } from './lib.mjs';
 
 const MODE = process.argv[2] || 'spread';
-const CWD = 'C:/Users/Solly/Downloads/HBI-Cloud/cloud';
+const CWD = new URL('..', import.meta.url);  // the cloud/ directory this probe lives under
 const COMPOSE = 'docker compose -f docker-compose.yml -f benchmarks/docker-compose.scale.yml';
 
 function sh(cmd) {

@@ -1,0 +1,37 @@
+# Production override: public port lockdown.
+#
+#   docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+# The base compose file publishes every service and database port to the host
+# because that is convenient while developing. On a public VM that is an
+# authentication bypass waiting to happen: the backend services trust the
+# X-User-Id / X-User-Name headers stamped by the gateway, so anything that can
+# reach a service port directly can claim any identity, and the databases and
+# Kafka would accept connections from the whole Internet.
+#
+# This override unpublishes everything except the frontend, and binds even
+# that to loopback only — the expectation is a TLS-terminating reverse proxy
+# (Caddy/nginx, see DEPLOYMENT.md) in front of it on 443. Inside the Docker
+# network nothing changes: services still reach each other, the databases and
+# Kafka by service name exactly as before.
+#
+#   Internet -> reverse proxy :443 (TLS) -> frontend (nginx) :5173 loopback
+#                                             |- /api and /ws -> api-gateway
+#                                                  |-> user/room/food/rating
+#                                                        |-> PostgreSQL, Kafka
+
+services:
+  user-db:            {ports: !reset []}
+  room-db:            {ports: !reset []}
+  food-db:            {ports: !reset []}
+  rating-db:          {ports: !reset []}
+  kafka:              {ports: !reset []}
+  user-service:       {ports: !reset []}
+  room-service:       {ports: !reset []}
+  food-service:       {ports: !reset []}
+  rating-service:     {ports: !reset []}
+  api-gateway:        {ports: !reset []}
+  frontend:
+    # !override replaces the base mapping instead of appending to it —
+    # otherwise the base 0.0.0.0:5173 publication would silently survive.
+    ports: !override ["127.0.0.1:5173:80"]

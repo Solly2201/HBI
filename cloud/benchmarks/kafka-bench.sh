@@ -9,7 +9,7 @@
 #   bash benchmarks/kafka-bench.sh [burst_size]
 
 export MSYS_NO_PATHCONV=1
-cd /c/Users/Solly/Downloads/HBI-Cloud/cloud || exit 1
+cd "$(dirname "$0")/.." || exit 1
 
 BURST=${1:-300}
 GROUP=hbi-rating-service

@@ -60,6 +60,10 @@ hbi:
     # How many food items a room rates at most. Players may stop after rating
     # half of them (rounded up), so a bigger list is depth, not obligation.
     shortlist-size: ${BLEND_SHORTLIST_SIZE:12}
+    # A room is re-scored at most once per this window, however many rating
+    # events land inside it (RescoreCoalescer). 0 disables the scheduler
+    # (unit tests drive flush() by hand).
+    rescore-interval-ms: ${RESCORE_INTERVAL_MS:250}
 
 management:
   endpoints:
