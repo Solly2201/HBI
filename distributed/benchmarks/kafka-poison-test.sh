@@ -26,8 +26,10 @@ lag() {
 }
 
 dlt_end_offset() {
+  # Sum the end offsets across all partitions - the topics are declared with
+  # three partitions (KafkaTopicConfig) and the DLT record can land on any.
   timeout 30 $KAFKA/kafka-get-offsets.sh --bootstrap-server kafka:9092 \
-    --topic hbi.ratings.DLT 2>/dev/null | awk -F: '{print $3}' | head -1
+    --topic hbi.ratings.DLT 2>/dev/null | awk -F: '{s+=$3} END {print s+0}'
 }
 
 echo "=== Kafka poison-message test"
