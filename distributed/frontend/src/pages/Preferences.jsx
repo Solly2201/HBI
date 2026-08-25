@@ -1,12 +1,12 @@
-import React, { useEffect, useState } from 'react';
-import { errorMessage, getCuisines, getPreferences, submitPreferences } from '../api';
+import React, { useCallback, useEffect, useState } from 'react';
+import { errorMessage, getCuisines, getPreferences, getUser, submitPreferences } from '../api';
 import { Alert, Loader } from '../components';
 
 /**
  * Cuisine picking, kept in HBI's language ("SELECT CUISINES"). The group's
  * chosen cuisines decide which food items appear on the rating shortlist.
  */
-export default function Preferences({ roomCode, members, isHost, onStartRating }) {
+export default function Preferences({ roomCode, members, isHost, connected, groupEvent, onStartRating }) {
   const [cuisines, setCuisines] = useState([]);
   const [picked, setPicked] = useState([]);
   const [group, setGroup] = useState(null);
@@ -15,6 +15,14 @@ export default function Preferences({ roomCode, members, isHost, onStartRating }
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
 
+  // Aggregates arrive from three places (initial fetch, own submit response,
+  // PREFERENCES_SUBMITTED pushes); submittedBy only grows, so an older
+  // aggregate that lost a race must never replace a newer one.
+  const applyGroup = useCallback((next) => {
+    if (!next) return;
+    setGroup((g) => (g && (g.submittedBy ?? 0) > (next.submittedBy ?? 0) ? g : next));
+  }, []);
+
   useEffect(() => {
     let alive = true;
     (async () => {
@@ -22,7 +30,15 @@ export default function Preferences({ roomCode, members, isHost, onStartRating }
         const [list, existing] = await Promise.all([getCuisines(), getPreferences(roomCode)]);
         if (!alive) return;
         setCuisines(list);
-        setGroup(existing);
+        applyGroup(existing);
+        // The server already has this player's choices (page refresh,
+        // reconnect on another tab): rebuild the locked-in view instead of
+        // asking them to submit again.
+        const mine = (existing.perPlayer || []).find((p) => p.userId === getUser()?.id);
+        if (mine) {
+          setPicked(mine.cuisines || []);
+          setSubmitted(true);
+        }
       } catch (err) {
         if (alive) setError(errorMessage(err, 'Could not load the cuisine list.'));
       } finally {
@@ -32,7 +48,19 @@ export default function Preferences({ roomCode, members, isHost, onStartRating }
     return () => {
       alive = false;
     };
-  }, [roomCode]);
+  }, [roomCode, applyGroup]);
+
+  // Another player submitted: the pushed aggregate updates the count live.
+  useEffect(() => {
+    applyGroup(groupEvent);
+  }, [groupEvent, applyGroup]);
+
+  // Events are not replayed, so anything pushed while the socket was down is
+  // gone; re-reading the aggregate on every (re)connect closes that gap.
+  useEffect(() => {
+    if (!connected) return;
+    getPreferences(roomCode).then(applyGroup).catch(() => {});
+  }, [connected, roomCode, applyGroup]);
 
   function toggle(c) {
     setPicked((p) => (p.includes(c) ? p.filter((x) => x !== c) : [...p, c]));
@@ -43,7 +71,7 @@ export default function Preferences({ roomCode, members, isHost, onStartRating }
     setBusy(true);
     try {
       const result = await submitPreferences(roomCode, { cuisines: picked });
-      setGroup(result.group);
+      applyGroup(result.group);
       setSubmitted(true);
     } catch (err) {
       setError(errorMessage(err, 'Could not save your choices.'));

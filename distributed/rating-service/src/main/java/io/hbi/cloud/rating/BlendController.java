@@ -51,12 +51,17 @@ public class BlendController {
         String room = normalise(roomId);
         Preference saved = blend.savePreference(room, userId,
                 req.cuisines() == null ? List.of() : req.cuisines());
+        Map<String, Object> group = blend.aggregatePreferences(room);
+
+        // The other players' screens show "N of M have submitted"; without a
+        // push they only learn N changed by refreshing.
+        broadcaster.send(room, "PREFERENCES_SUBMITTED", group);
 
         Map<String, Object> out = new LinkedHashMap<>();
         out.put("roomId", room);
         out.put("userId", saved.getUserId());
         out.put("cuisines", saved.cuisineList());
-        out.put("group", blend.aggregatePreferences(room));
+        out.put("group", group);
         return out;
     }
 

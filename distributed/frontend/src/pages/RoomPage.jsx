@@ -87,6 +87,7 @@ export default function RoomPage() {
   const [room, setRoom] = useState(null);
   const [members, setMembers] = useState([]);
   const [decision, setDecision] = useState(null);
+  const [groupPrefs, setGroupPrefs] = useState(null);
   const [recommendations, setRecommendations] = useState([]);
   const [progress, setProgress] = useState(null);
   const [error, setError] = useState('');
@@ -152,6 +153,9 @@ export default function RoomPage() {
         case 'ROOM_CREATED':
         case 'ROOM_STATE_CHANGED':
           refreshRoom().catch(() => {});
+          break;
+        case 'PREFERENCES_SUBMITTED':
+          setGroupPrefs(event.payload);
           break;
         case 'RATING_PROGRESS':
           setProgress(event.payload);
@@ -253,6 +257,8 @@ export default function RoomPage() {
             roomCode={roomCode}
             members={members}
             isHost={isHost}
+            connected={connected}
+            groupEvent={groupPrefs}
             onStartRating={() => advance('RATING')}
           />
         )}
