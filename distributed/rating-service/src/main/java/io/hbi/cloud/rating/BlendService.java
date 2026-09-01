@@ -23,6 +23,7 @@ import java.util.LinkedHashMap;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -153,7 +154,7 @@ public class BlendService {
         Map<Long, FoodView> byId = fetched.stream()
                 .collect(Collectors.toMap(FoodView::id, f -> f, (a, b) -> a));
         return order.stream().map(c -> byId.get(c.getFoodId()))
-                .filter(java.util.Objects::nonNull).toList();
+                .filter(Objects::nonNull).toList();
     }
 
     // -------------------------------------------------------------- ratings

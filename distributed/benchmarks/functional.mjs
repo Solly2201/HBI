@@ -361,9 +361,8 @@ h.check('WebSocket with valid token accepted', (await probeWs(`${ws}/ws?token=${
 // ===================================================== room edge cases
 h.section('Room edge cases');
 
-// "0" is not in the room-code alphabet, so this code can never be allocated.
-// (The previous fixture, HBIZZZZ, was eventually allocated for real by a load
-// run - 75k rooms in, the collision came up - and the test failed spuriously.)
+// "0" is not in the room-code alphabet, so this code can never be allocated
+// for real and collide with the fixture.
 const noSuchRoom = await call('GET', '/api/rooms/HBI0000', { token: alice.token });
 h.check('invalid room code returns 404', noSuchRoom.status === 404, `got ${noSuchRoom.status}`);
 

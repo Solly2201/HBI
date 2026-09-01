@@ -3,8 +3,8 @@
  *
  *   node scripts/preferences-sync-test.mjs
  *
- * Reproduces the LAN bug setup with two players, each holding their own
- * WebSocket subscription (two devices):
+ * Two players, each holding their own WebSocket subscription, as they would
+ * on two separate devices:
  *
  *   - host submits cuisines  -> the guest's socket must receive
  *     PREFERENCES_SUBMITTED with submittedBy=1

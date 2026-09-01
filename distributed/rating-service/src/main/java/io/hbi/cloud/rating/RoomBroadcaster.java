@@ -17,15 +17,13 @@ import java.util.Map;
  * rating-service instance, not just this one.
  *
  * The STOMP broker is in-memory, so each instance can only reach the browsers
- * connected to itself. With one instance that was the whole world; with
- * replicas it split rooms across brokers and events stopped reaching half the
- * players (measured: 0/10 cross-instance deliveries at x2). The fix is a
- * shared fan-out hop: {@link #send} PUBLISHES the envelope to a Redis pub/sub
- * channel instead of delivering it, and every instance — including this one —
- * receives the publish through its subscription ({@link RedisFanoutConfig})
- * and hands it to its own local broker via {@link #deliverLocally}. Each
- * browser is connected to exactly one instance, so each event arrives exactly
- * once.
+ * connected to itself; across replicas that would split one room over several
+ * brokers and leave half the players without events. Hence a shared fan-out
+ * hop: {@link #send} PUBLISHES the envelope to a Redis pub/sub channel instead
+ * of delivering it, and every instance — including this one — receives the
+ * publish through its subscription ({@link RedisFanoutConfig}) and hands it to
+ * its own local broker via {@link #deliverLocally}. Each browser is connected
+ * to exactly one instance, so each event arrives exactly once.
  *
  * Redis carries nothing but these in-flight frames: no business state, no
  * sessions, nothing durable. If Redis is down the publish fails fast and the

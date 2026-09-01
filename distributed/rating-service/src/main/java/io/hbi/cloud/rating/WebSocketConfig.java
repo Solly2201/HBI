@@ -16,6 +16,7 @@ import org.springframework.web.socket.config.annotation.WebSocketMessageBrokerCo
 import org.springframework.web.socket.server.HandshakeInterceptor;
 
 import javax.crypto.SecretKey;
+import java.net.URLDecoder;
 import java.nio.charset.StandardCharsets;
 import java.util.Map;
 
@@ -93,7 +94,6 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
         @Override
         public void afterHandshake(ServerHttpRequest request, ServerHttpResponse response,
                                    WebSocketHandler wsHandler, Exception exception) {
-            // nothing to do
         }
 
         private String firstQueryValue(String query, String name) {
@@ -103,7 +103,7 @@ public class WebSocketConfig implements WebSocketMessageBrokerConfigurer {
             for (String pair : query.split("&")) {
                 int eq = pair.indexOf('=');
                 if (eq > 0 && pair.substring(0, eq).equals(name)) {
-                    return java.net.URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8);
+                    return URLDecoder.decode(pair.substring(eq + 1), StandardCharsets.UTF_8);
                 }
             }
             return null;

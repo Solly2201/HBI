@@ -1,6 +1,7 @@
 package io.hbi.cloud.rating;
 
 import org.apache.kafka.clients.producer.ProducerConfig;
+import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.serialization.StringSerializer;
@@ -63,8 +64,7 @@ public class KafkaErrorConfig {
         // Explicit destination: <topic>.DLT, same partition. (This version's
         // default resolver would use a "-dlt" suffix instead.)
         DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(deadLetterTemplate,
-                (record, ex) -> new org.apache.kafka.common.TopicPartition(
-                        record.topic() + ".DLT", record.partition()));
+                (record, ex) -> new TopicPartition(record.topic() + ".DLT", record.partition()));
         return new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 2L));
     }
 }

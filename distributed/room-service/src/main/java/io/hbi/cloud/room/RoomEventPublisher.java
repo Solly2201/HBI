@@ -7,6 +7,7 @@ import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.time.Instant;
+import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -32,7 +33,7 @@ public class RoomEventPublisher {
      * @param eventType one of ROOM_CREATED, USER_JOINED, USER_LEFT, ROOM_STATE_CHANGED
      */
     public void publish(String eventType, Room room, Long userId, String displayName) {
-        Map<String, Object> event = new java.util.LinkedHashMap<>();
+        Map<String, Object> event = new LinkedHashMap<>();
         event.put("eventType", eventType);
         event.put("roomId", room.getCode());
         event.put("roomCode", room.getCode());

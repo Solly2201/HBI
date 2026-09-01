@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { createRoom, ensureSession, errorMessage, getUser, joinRoom } from '../api';
 import { Alert } from '../components';

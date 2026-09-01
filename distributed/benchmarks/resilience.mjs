@@ -33,7 +33,7 @@ async function probe(ctx) {
   out['POST /api/users/session'] = (await call('POST', '/api/users/session',
     { body: { displayName: 'probe' } })).status;
   out['POST /api/rooms'] = (await call('POST', '/api/rooms', { token: ctx.user.token })).status;
-  out[`GET /api/rooms/{code}`] = (await call('GET', `/api/rooms/${ctx.room}`, { token: ctx.user.token })).status;
+  out['GET /api/rooms/{code}'] = (await call('GET', `/api/rooms/${ctx.room}`, { token: ctx.user.token })).status;
   out['GET /api/rooms/{code}/candidates'] = (await call('GET', `/api/rooms/${ctx.room}/candidates`,
     { token: ctx.user.token })).status;
   out['POST /api/rooms/{code}/ratings'] = (await call('POST', `/api/rooms/${ctx.room}/ratings`,

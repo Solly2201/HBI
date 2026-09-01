@@ -1,5 +1,7 @@
 /**
- * Regression tests for the hardening pass (BUG-1..BUG-6).
+ * Regression tests for the hardening fixes — ratings validated against the
+ * frozen shortlist, a DECIDED room refusing new joins, concurrent duplicate
+ * ratings — plus a check that valid events still flow end to end afterwards.
  *
  *   node --experimental-websocket benchmarks/regression.mjs
  *

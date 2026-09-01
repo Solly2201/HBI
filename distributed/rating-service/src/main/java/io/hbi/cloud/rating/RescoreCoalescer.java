@@ -19,18 +19,18 @@ import java.util.concurrent.TimeUnit;
 /**
  * Coalesces per-event re-scoring.
  *
- * Phase 4 measured the real scalability ceiling of this service: every rating
- * event triggered a full room re-score (progress REST call to room-service,
- * catalogue REST call to food-service, delete/insert of the stored ranking),
- * draining a burst at only ~10-15 events/s. At human rating rates that is
- * irrelevant; under a burst it left minutes of single-partition backlog.
+ * A full re-score is expensive (progress REST call to room-service, catalogue
+ * REST call to food-service, delete/insert of the stored ranking), so running
+ * one per rating event drains a burst at only ~10-15 events/s. At human rating
+ * rates that is irrelevant; under a burst it leaves minutes of backlog on the
+ * room's single partition.
  *
- * The fix is a dirty set, not a queue: the Kafka listener only records that a
+ * Hence a dirty set rather than a queue: the Kafka listener only records that a
  * room needs re-scoring, and a single scheduled thread re-scores every dirty
  * room at most once per flush interval. Ten ratings landing in one window cost
  * one re-score instead of ten. Correctness is unaffected — scoring always
  * reads the full current state from the database, so the last flush after a
- * burst produces exactly the ranking the per-event version would have.
+ * burst produces exactly the ranking a per-event re-score would have.
  *
  * The automatic decision check rides in the same flush, so the worst case
  * added latency for "everyone has finished" is one flush interval.

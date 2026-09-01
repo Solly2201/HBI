@@ -3,6 +3,7 @@ package io.hbi.cloud.room;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.data.domain.PageRequest;
 import org.springframework.scheduling.annotation.Scheduled;
 import org.springframework.stereotype.Component;
 
@@ -35,6 +36,9 @@ public class RoomCleanup {
 
     private static final Logger log = LoggerFactory.getLogger(RoomCleanup.class);
 
+    /** How many rooms one batch loads; bounds memory however big the backlog. */
+    static final int BATCH = 500;
+
     private final RoomRepository rooms;
     private final RoomMemberRepository members;
     private final RoomEventPublisher events;
@@ -49,9 +53,6 @@ public class RoomCleanup {
         this.events = events;
         this.ttl = Duration.ofHours(ttlHours);
     }
-
-    /** How many rooms one batch loads; bounds memory however big the backlog. */
-    static final int BATCH = 500;
 
     @Scheduled(fixedDelayString = "${hbi.cleanup.interval-ms:3600000}",
                initialDelayString = "${hbi.cleanup.initial-delay-ms:60000}")
@@ -72,7 +73,7 @@ public class RoomCleanup {
 
     /** Deletes one batch of rooms stale at {@code cutoff}; returns how many went. */
     public int purgeStaleRooms(Instant cutoff) {
-        List<Room> stale = rooms.findStaleRooms(cutoff, org.springframework.data.domain.PageRequest.of(0, BATCH));
+        List<Room> stale = rooms.findStaleRooms(cutoff, PageRequest.of(0, BATCH));
         int purged = 0;
         for (Room room : stale) {
             try {

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Kafka poison-message regression test (BUG-6).
+# Kafka poison-message regression test.
 #
 #   bash benchmarks/kafka-poison-test.sh
 #

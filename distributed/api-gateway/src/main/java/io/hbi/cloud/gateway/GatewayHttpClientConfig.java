@@ -13,10 +13,10 @@ import java.time.Duration;
  * DNS advertises (minutes). When Compose recreates a service the container
  * gets a new address, and the gateway kept dialing the dead one for the whole
  * cached TTL — every request to that service failed with "connection refused"
- * until someone restarted the gateway (observed during the Phase 5 scaling
- * runs). Capping the cache TTL bounds that outage to a few seconds, after
- * which the next lookup returns the live address. Negative answers are cached
- * even shorter so a service that is still starting is retried quickly.
+ * until the gateway itself was restarted. Capping the cache TTL bounds that
+ * outage to a few seconds, after which the next lookup returns the live
+ * address. Negative answers are cached even shorter so a service that is still
+ * starting is retried quickly.
  *
  * The connection pool settings in application.yml bound the matching problem
  * on the pooled side (idle connections to an address that no longer exists).

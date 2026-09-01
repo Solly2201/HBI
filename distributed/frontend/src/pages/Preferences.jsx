@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { errorMessage, getCuisines, getPreferences, getUser, submitPreferences } from '../api';
 import { Alert, Loader } from '../components';
 

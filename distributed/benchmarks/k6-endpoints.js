@@ -10,7 +10,6 @@
 
 import http from 'k6/http';
 import { Trend, Rate, Counter } from 'k6/metrics';
-import { sleep } from 'k6';
 
 const fixture = JSON.parse(open('./load-fixture.json'));
 const GATEWAY = __ENV.GATEWAY || 'http://localhost:8080';

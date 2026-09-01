@@ -1,4 +1,3 @@
-import React from 'react';
 import { Navigate, Route, Routes, useNavigate } from 'react-router-dom';
 import HomePage from './pages/HomePage';
 import RoomPage from './pages/RoomPage';

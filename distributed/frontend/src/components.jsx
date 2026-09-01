@@ -45,4 +45,3 @@ export function PlayerList({ members, hostId }) {
     </ul>
   );
 }
-

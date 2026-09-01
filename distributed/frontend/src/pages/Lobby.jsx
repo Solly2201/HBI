@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { PlayerList } from '../components';
 
 export default function Lobby({ room, members, isHost, connected, onStart }) {

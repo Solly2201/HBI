@@ -6,9 +6,10 @@
  * mode = spread    : how requests are distributed across replicas
  * mode = websocket : whether real-time events survive a replicated rating-service
  *
- * The README claims the in-memory STOMP broker prevents rating-service from
- * scaling horizontally. This measures whether that is true and, if so, what
- * a user actually experiences.
+ * Each rating-service instance runs its own in-memory STOMP broker and the
+ * instances bridge over Redis pub/sub, so replicating the service should not
+ * cost a browser any events. This measures whether that holds, and what a
+ * user actually experiences when it does not.
  */
 
 import { execSync } from 'node:child_process';

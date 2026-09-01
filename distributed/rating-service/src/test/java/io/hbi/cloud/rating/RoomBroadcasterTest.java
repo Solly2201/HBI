@@ -5,6 +5,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.RedisConnectionFailureException;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.messaging.simp.SimpMessagingTemplate;
 
 import java.util.Map;
@@ -29,13 +30,13 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class RoomBroadcasterTest {
 
     private SimpMessagingTemplate messaging;
-    private org.springframework.data.redis.core.StringRedisTemplate redis;
+    private StringRedisTemplate redis;
     private RoomBroadcaster broadcaster;
 
     @BeforeEach
     void setUp() {
         messaging = mock(SimpMessagingTemplate.class);
-        redis = mock(org.springframework.data.redis.core.StringRedisTemplate.class);
+        redis = mock(StringRedisTemplate.class);
         broadcaster = new RoomBroadcaster(messaging, redis, new ObjectMapper());
     }
 
@@ -85,8 +86,7 @@ class RoomBroadcasterTest {
 
         SimpMessagingTemplate otherMessaging = mock(SimpMessagingTemplate.class);
         RoomBroadcaster otherInstance = new RoomBroadcaster(otherMessaging,
-                mock(org.springframework.data.redis.core.StringRedisTemplate.class),
-                new ObjectMapper());
+                mock(StringRedisTemplate.class), new ObjectMapper());
         otherInstance.onFanoutMessage(wire.getValue());
 
         ArgumentCaptor<Map<String, Object>> delivered = ArgumentCaptor.forClass(Map.class);

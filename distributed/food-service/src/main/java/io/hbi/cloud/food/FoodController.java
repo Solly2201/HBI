@@ -49,6 +49,8 @@ public class FoodController {
                         .toList();
         int cuisineCount = (cuisine == null || cuisine.isBlank()) ? 0 : cuisines.size();
 
+        // A count of 0 disables the cuisine filter in the query, but JPQL `in` still
+        // needs a non-empty list — which "cuisine=," would otherwise not produce.
         return foods.search(cuisines.isEmpty() ? List.of("") : cuisines, cuisineCount)
                 .stream().map(FoodView::of).toList();
     }

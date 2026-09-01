@@ -4,9 +4,9 @@
  *   node scripts/smoke-test.mjs
  *
  * It walks the whole journey with two players - start anonymous sessions,
- * create a room, join it, submit preferences, rate the shortlist - and asserts that the Kafka
- * -> decision -> WebSocket path actually delivers the result to a subscribed
- * browser. Any failure exits non-zero.
+ * create a room, join it, submit preferences, rate the shortlist - and asserts
+ * that the Kafka -> decision -> WebSocket path actually delivers the result to
+ * a subscribed browser. Any failure exits non-zero.
  *
  * The STOMP client is borrowed from the frontend's node_modules, so run
  * `npm install` in ../frontend first (the script says so if it is missing).
